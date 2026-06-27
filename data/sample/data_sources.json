@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "0.1.0",
+  "dataSources": [
+    {
+      "sourceId": "aoi_ocha_hdx_admin",
+      "name": "HDX/OCHA Ethiopia Admin Boundaries",
+      "provider": "HDX/OCHA",
+      "geeAssetId": "users/YOUR_USERNAME/eth_adm1_ocha_hdx",
+      "s3Key": "sources/admin/ethiopia_admin_boundaries.geojson",
+      "category": "administrative_boundaries",
+      "status": "placeholder_external",
+      "usedFor": ["area geometry", "aggregation by woreda/zone/region"]
+    },
+    {
+      "sourceId": "sentinel2_surface_reflectance",
+      "name": "Sentinel-2 Surface Reflectance Harmonized",
+      "provider": "Copernicus",
+      "geeAssetId": "COPERNICUS/S2_SR_HARMONIZED",
+      "category": "satellite_optical",
+      "status": "gee_available",
+      "usedFor": ["current NDVI", "current NDMI", "vegetation condition"]
+    },
+    {
+      "sourceId": "hansen_global_forest_change",
+      "name": "Hansen Global Forest Change",
+      "provider": "UMD/Google/USGS/NASA",
+      "geeAssetId": "UMD/hansen/global_forest_change_2025_v1_13",
+      "category": "forest_change",
+      "status": "gee_available",
+      "usedFor": ["tree cover 2000", "forest loss", "recent deforestation risk"]
+    }
+  ]
+}

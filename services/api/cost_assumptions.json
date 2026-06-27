@@ -1,0 +1,19 @@
+{
+  "currency": "EUR",
+  "plantingDensityPerHa": 1100,
+  "seedlingUnitCost": 0.25,
+  "plantingLaborCostPerSeedling": 0.15,
+  "sitePreparationCostPerHa": 120,
+  "annualMaintenanceCostPerHa": 80,
+  "maintenanceYears": 3,
+  "baseLogisticsCostPerHa": 40,
+  "fieldValidationBaseCost": 500,
+  "mrvSetupCost": 5000,
+  "carbonProjectDevelopmentFixedCost": 15000,
+  "contingencyRate": 0.15,
+  "defaultExpectedTCO2ePerHa": 68,
+  "defaultPlantableFraction": 0.5,
+  "defaultExpectedSurvivalRate": 0.7,
+  "replacementShare": 0.5,
+  "uncertaintyDiscount": 0.85
+}

@@ -33,3 +33,9 @@ variable "bedrock_model_id" {
   type        = string
   default     = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 }
+
+variable "allow_mock_data" {
+  description = "Whether the API may fall back to mock geometry/data when processed GeoJSON is missing."
+  type        = bool
+  default     = true
+}
