@@ -35,9 +35,12 @@ s3://<processed-bucket>/
     area_ET-001_prefeasibility.pdf
 ```
 
-The current Lambda reads `geometry/areas.geojson` and `indicators/latest.json`
-when present. It falls back to the legacy `processed/scored_areas.json` object
-or mock data for hackathon demos.
+The current Lambda reads `geometry/areas.geojson` and joins
+`indicators/latest.json` when present. In local development it can read
+`data/sample/areas.geojson`; if enabled, mock data remains a final fallback for
+hackathon demos. See
+[`real-geojson-flow.md`](real-geojson-flow.md) for the upload and runtime
+fallback controls.
 
 ## File Responsibilities
 

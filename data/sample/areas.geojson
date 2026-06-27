@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "name": "mfmtree_sample_candidate_areas",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "areaId": "ET-001",
+        "name": "Example Woreda",
+        "region": "Southwest Ethiopia"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [36.32, 7.08],
+            [36.86, 7.12],
+            [36.98, 6.74],
+            [36.55, 6.48],
+            [36.18, 6.74],
+            [36.32, 7.08]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "areaId": "ET-002",
+        "name": "Remote Carbon Highlands",
+        "region": "Southwest Ethiopia"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [35.72, 8.16],
+            [36.3, 8.32],
+            [36.52, 7.92],
+            [36.06, 7.58],
+            [35.58, 7.82],
+            [35.72, 8.16]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "areaId": "ET-003",
+        "name": "Accessible Lowland Buffer",
+        "region": "Oromia"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [39.0, 6.58],
+            [39.58, 6.5],
+            [39.72, 6.1],
+            [39.22, 5.92],
+            [38.86, 6.2],
+            [39.0, 6.58]
+          ]
+        ]
+      }
+    }
+  ]
+}

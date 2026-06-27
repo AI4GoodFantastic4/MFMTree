@@ -4,6 +4,7 @@ AWS_REGION ?= eu-central-1
 FRONTEND_ORIGIN ?= http://localhost:5173
 BEDROCK_ENABLED ?= false
 BEDROCK_MODEL_ID ?= anthropic.claude-3-5-sonnet-20240620-v1:0
+ALLOW_MOCK_DATA ?= true
 
 TF_DIR := infra
 API_DIR := services/api
@@ -75,7 +76,8 @@ tf-plan: lambda-package
 		-var="aws_region=$(AWS_REGION)" \
 		-var="frontend_origin=$(FRONTEND_ORIGIN)" \
 		-var="bedrock_enabled=$(BEDROCK_ENABLED)" \
-		-var="bedrock_model_id=$(BEDROCK_MODEL_ID)"
+		-var="bedrock_model_id=$(BEDROCK_MODEL_ID)" \
+		-var="allow_mock_data=$(ALLOW_MOCK_DATA)"
 
 tf-apply: lambda-package
 	@terraform -chdir=$(TF_DIR) apply \
@@ -84,7 +86,8 @@ tf-apply: lambda-package
 		-var="aws_region=$(AWS_REGION)" \
 		-var="frontend_origin=$(FRONTEND_ORIGIN)" \
 		-var="bedrock_enabled=$(BEDROCK_ENABLED)" \
-		-var="bedrock_model_id=$(BEDROCK_MODEL_ID)"
+		-var="bedrock_model_id=$(BEDROCK_MODEL_ID)" \
+		-var="allow_mock_data=$(ALLOW_MOCK_DATA)"
 
 clean:
 	@rm -rf $(API_DIR)/build $(API_DIR)/dist $(FRONTEND_DIR)/dist

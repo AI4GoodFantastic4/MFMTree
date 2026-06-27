@@ -18,6 +18,33 @@ export type Area = {
   indicators?: Record<string, unknown>;
 };
 
+export type GeoJsonGeometry = {
+  type: string;
+  coordinates: unknown;
+};
+
+export type GeoJsonFeature = {
+  type: "Feature";
+  properties: {
+    areaId: string;
+    name?: string;
+    region?: string;
+    [key: string]: unknown;
+  };
+  geometry: GeoJsonGeometry;
+};
+
+export type GeoJsonFeatureCollection = {
+  type: "FeatureCollection";
+  features: GeoJsonFeature[];
+};
+
+export type AreasResponse = {
+  areas: Area[];
+  geojson?: GeoJsonFeatureCollection;
+  source: string;
+};
+
 export type CostEstimate = {
   areaId: string;
   estimatedPlantableHa: number;
@@ -142,9 +169,14 @@ export async function getHealth() {
   return request<{ status: string; service: string }>("/health", { status: "mock", service: "mfmtree-api" });
 }
 
-export async function getAreas(): Promise<Area[]> {
-  const data = await request<{ areas: Area[] }>("/areas", { areas: mockAreas });
-  return data.areas || mockAreas;
+export async function getAreas(): Promise<AreasResponse> {
+  const data = await request<AreasResponse>("/areas", { areas: mockAreas, source: "frontend-mock" });
+  const geojson = isFeatureCollection(data.geojson) ? data.geojson : undefined;
+  return {
+    areas: data.areas?.length ? data.areas : mockAreas,
+    geojson,
+    source: data.source || (geojson ? "api" : "frontend-mock"),
+  };
 }
 
 export async function getArea(areaId: string): Promise<Area> {
@@ -171,6 +203,28 @@ export async function runScenario(weights: ScenarioRequest): Promise<ScenarioRes
 export async function getScores(): Promise<Record<string, Partial<Area>>> {
   const data = await request<{ scoresByArea: Record<string, Partial<Area>> }>("/scores", { scoresByArea: {} });
   return data.scoresByArea || {};
+}
+
+export function mergeScoresByArea(areas: Area[], scoresByArea: Record<string, Partial<Area>>): Area[] {
+  return areas.map((area) => ({
+    ...area,
+    ...(scoresByArea[area.areaId] || {}),
+  }));
+}
+
+export function isFeatureCollection(value: unknown): value is GeoJsonFeatureCollection {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<GeoJsonFeatureCollection>;
+  return (
+    candidate.type === "FeatureCollection" &&
+    Array.isArray(candidate.features) &&
+    candidate.features.every(
+      (feature) =>
+        feature?.type === "Feature" &&
+        Boolean(feature.properties?.areaId) &&
+        Boolean(feature.geometry),
+    )
+  );
 }
 
 export async function getCostEstimate(areaId: string): Promise<CostEstimate | null> {

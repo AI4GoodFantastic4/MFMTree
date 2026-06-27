@@ -3,11 +3,18 @@ from typing import Any
 
 from bedrock import compare_areas, generate_area_explanation, generate_field_brief
 from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost_assumptions, plan_budget
-from data import get_area, load_areas
+from data import DataUnavailableError, get_area, load_area_collection, load_areas
 from scoring_engine import apply_scores, score_areas, scored_area_list
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    try:
+        return _route(event, context)
+    except DataUnavailableError as exc:
+        return _json(404, {"message": str(exc), "source": "missing"})
+
+
+def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
     route_key = event.get("routeKey", "")
     path = event.get("rawPath", "")
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
@@ -16,8 +23,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return _json(200, {"status": "ok", "service": "mfmtree-api"})
 
     if route_key == "GET /areas" or (method == "GET" and path == "/areas"):
-        areas, source = load_areas()
-        return _json(200, {"areas": scored_area_list(areas), "source": source})
+        collection = load_area_collection()
+        return _json(
+            200,
+            {
+                "geojson": collection["geojson"],
+                "areas": scored_area_list(collection["areas"]),
+                "source": collection["source"],
+            },
+        )
 
     if route_key == "GET /scores" or (method == "GET" and path == "/scores"):
         areas, source = load_areas()

@@ -55,17 +55,23 @@ tries to join:
 - `s3://<processed-bucket>/geometry/areas.geojson`
 - `s3://<processed-bucket>/indicators/latest.json`
 
-If those objects are missing, it falls back to the legacy
-`processed/scored_areas.json` object and then mock data.
+If S3 geometry is missing, local development can use `LOCAL_GEOJSON_PATH`
+(`data/sample/areas.geojson` by default). Mock geometry is used only when
+`ALLOW_MOCK_DATA=true`.
 
 ```json
 {
+  "geojson": {
+    "type": "FeatureCollection",
+    "features": []
+  },
   "areas": [],
-  "source": "s3:geometry+indicators"
+  "source": "s3"
 }
 ```
 
-`source` can be `s3:geometry+indicators`, `s3:legacy-scored-areas`, or `mock`.
+`source` can be `s3`, `local`, or `mock`. Set `ALLOW_MOCK_DATA=false` to return
+an error instead of silently serving mock geometry when real geometry is absent.
 
 ### `GET /areas/{areaId}`
 

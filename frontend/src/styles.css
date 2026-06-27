@@ -124,6 +124,31 @@ h3 {
   font-size: 0.84rem;
 }
 
+.mapTools {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.dataBadge {
+  border: 1px solid rgba(181, 205, 190, 0.2);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 0.76rem;
+  color: #dcebe3;
+  background: rgba(8, 13, 12, 0.56);
+}
+
+.dataBadgeLive {
+  border-color: rgba(94, 234, 212, 0.38);
+  color: #9df5df;
+}
+
+.dataBadgeMock {
+  border-color: rgba(250, 204, 21, 0.34);
+  color: #f8dc72;
+}
+
 .legend span {
   width: 12px;
   height: 12px;
@@ -223,6 +248,43 @@ h3 {
   font-size: 1.7rem;
 }
 
+.geojsonMapLayer {
+  position: absolute;
+  inset: 5% 12%;
+  width: 76%;
+  height: 86%;
+  overflow: visible;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.3));
+}
+
+.geoArea {
+  cursor: pointer;
+  outline: none;
+}
+
+.geoArea polygon {
+  stroke: rgba(255, 255, 255, 0.48);
+  stroke-width: 0.9;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 160ms ease, stroke-width 160ms ease, filter 160ms ease;
+}
+
+.geoArea:hover polygon,
+.geoArea.selected polygon {
+  stroke: #ffffff;
+  stroke-width: 1.8;
+  filter: brightness(1.08);
+}
+
+.geoArea text {
+  fill: #07110c;
+  font-size: 3.4px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
 .polygon-a {
   clip-path: polygon(8% 17%, 65% 4%, 94% 42%, 75% 92%, 19% 80%);
 }
@@ -253,6 +315,18 @@ h3 {
 
 .priorityReview {
   background: rgba(239, 122, 91, 0.9);
+}
+
+.geoArea.priorityHigh polygon {
+  fill: rgba(61, 220, 132, 0.86);
+}
+
+.geoArea.priorityMedium polygon {
+  fill: rgba(250, 204, 21, 0.88);
+}
+
+.geoArea.priorityReview polygon {
+  fill: rgba(239, 122, 91, 0.9);
 }
 
 .mapTodo {

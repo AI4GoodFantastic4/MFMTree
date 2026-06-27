@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   CostEstimate,
+  GeoJsonFeatureCollection,
   explainArea,
   getAreas,
   getCostEstimate,
   getFieldBrief,
   getHealth,
+  getScores,
+  mergeScoresByArea,
   mockAreas,
   runScenario,
 } from "./api/client";
@@ -27,6 +30,8 @@ export default function App() {
   const [advisorState, setAdvisorState] = useState<AdvisorState>("idle");
   const [health, setHealth] = useState("checking");
   const [comparing, setComparing] = useState(false);
+  const [geojson, setGeojson] = useState<GeoJsonFeatureCollection | undefined>();
+  const [dataSource, setDataSource] = useState("initial mock");
 
   const selectedArea = useMemo(
     () => areas.find((area) => area.areaId === selectedAreaId) || areas[0],
@@ -35,10 +40,16 @@ export default function App() {
 
   useEffect(() => {
     getHealth().then((data) => setHealth(data.status));
-    getAreas().then((data) => {
-      setAreas(data);
-      if (data[0]) setSelectedAreaId(data[0].areaId);
-      if (data[1]) setAreaB(data[1].areaId);
+    Promise.all([getAreas(), getScores()]).then(([areaPayload, scoresByArea]) => {
+      const mergedAreas = mergeScoresByArea(areaPayload.areas, scoresByArea);
+      setAreas(mergedAreas);
+      setGeojson(areaPayload.geojson);
+      setDataSource(areaPayload.source);
+      console.info(`Loaded geometry features: ${areaPayload.geojson?.features.length || 0}`);
+      console.info(`Updated scores for areas: ${Object.keys(scoresByArea).length}`);
+      console.info(`Geometry source: ${areaPayload.source}`);
+      if (mergedAreas[0]) setSelectedAreaId(mergedAreas[0].areaId);
+      if (mergedAreas[1]) setAreaB(mergedAreas[1].areaId);
     });
   }, []);
 
@@ -60,12 +71,8 @@ export default function App() {
     setAdvisorState("comparing");
     const result = await runScenario({ name: "Hackathon area comparison", areaIds: [areaA, areaB] });
     if (result.scoresByArea) {
-      setAreas((currentAreas) =>
-        currentAreas.map((area) => ({
-          ...area,
-          ...(result.scoresByArea?.[area.areaId] || {}),
-        })),
-      );
+      setAreas((currentAreas) => mergeScoresByArea(currentAreas, result.scoresByArea || {}));
+      console.info(`Updated scores for areas: ${Object.keys(result.scoresByArea).length}`);
     }
     setScenarioResult(result.analysis);
     const hasRisk = [areaA, areaB].some((id) => {
@@ -87,7 +94,7 @@ export default function App() {
       </header>
       <section className="workspace">
         <div className="leftColumn">
-          <MapMock areas={areas} selectedAreaId={selectedAreaId} onSelect={setSelectedAreaId} />
+          <MapMock areas={areas} geojson={geojson} dataSource={dataSource} selectedAreaId={selectedAreaId} onSelect={setSelectedAreaId} />
           <AreaComparison
             areas={areas}
             areaA={areaA}
