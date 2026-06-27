@@ -9,24 +9,28 @@ TF_DIR := infra
 API_DIR := services/api
 LAMBDA_DIST := $(API_DIR)/dist/lambda.zip
 
-.PHONY: help check fmt lambda-package api-smoke processor-smoke tf-init tf-fmt tf-validate tf-plan tf-apply clean
+.PHONY: help check fmt test lambda-package api-smoke processor-smoke tf-init tf-fmt tf-validate tf-plan tf-apply clean
 
 help:
 	@echo "Targets:"
 	@echo "  make check             Run formatting and lightweight validation"
 	@echo "  make lambda-package    Build Lambda zip at $(LAMBDA_DIST)"
 	@echo "  make api-smoke         Exercise Lambda handler locally with mock events"
+	@echo "  make test              Run unit tests"
 	@echo "  make processor-smoke   Run GIS processor locally without S3 upload"
 	@echo "  make tf-init           terraform init"
 	@echo "  make tf-plan           terraform plan with default variables"
 	@echo "  make tf-apply          terraform apply with default variables"
 
-check: fmt lambda-package api-smoke processor-smoke tf-fmt
+check: fmt test lambda-package api-smoke processor-smoke tf-fmt
 	@python3 -m py_compile $(API_DIR)/*.py services/gis-processor/processor.py
 	@if command -v terraform >/dev/null 2>&1 && [ -d "$(TF_DIR)/.terraform" ]; then $(MAKE) tf-validate; else echo "terraform not initialized or not found; skipped tf-validate"; fi
 
 fmt:
 	@python3 -m compileall -q $(API_DIR) services/gis-processor
+
+test:
+	@python3 -m unittest discover -s tests
 
 lambda-package:
 	@./scripts/package_lambda.sh

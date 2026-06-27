@@ -23,7 +23,12 @@ locals {
     "GET /health",
     "GET /areas",
     "GET /areas/{areaId}",
+    "GET /areas/{areaId}/cost-estimate",
     "POST /areas/{areaId}/explain",
+    "POST /areas/{areaId}/field-brief",
+    "POST /areas/{areaId}/carbon-readiness",
+    "POST /cost-estimate",
+    "POST /budget-plan",
     "POST /scenario",
     "POST /field-brief"
   ])

@@ -85,6 +85,12 @@ The Lambda handler can be exercised without AWS:
 make api-smoke
 ```
 
+Run unit tests:
+
+```bash
+make test
+```
+
 ## What Is Deployable
 
 - S3 raw and processed buckets
@@ -94,14 +100,17 @@ make api-smoke
 - ECS cluster, task definition, and execution role skeleton
 - Step Functions state machine skeleton
 - IAM placeholders for Bedrock and orchestration
+- Deterministic cost-estimation API using configurable assumptions
 
 ## What Is Mocked
 
 - GIS scoring uses deterministic mock scored areas.
+- Cost estimates use mock GIS indicators and placeholder assumptions.
 - Bedrock responses fall back to deterministic text when disabled or failing.
 - EventBridge/S3 trigger is a placeholder variable-ready module section.
 - The 3D frontend is not included yet.
 
 See [docs/aws-architecture.md](docs/aws-architecture.md),
-[docs/api-contract.md](docs/api-contract.md), and
+[docs/api-contract.md](docs/api-contract.md),
+[docs/cost-estimation.md](docs/cost-estimation.md), and
 [docs/local-dev.md](docs/local-dev.md) for details.

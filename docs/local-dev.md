@@ -25,6 +25,12 @@ Run a local smoke test:
 make api-smoke
 ```
 
+Run unit tests:
+
+```bash
+make test
+```
+
 Build the Lambda deployment zip:
 
 ```bash
@@ -111,6 +117,14 @@ curl "$API_BASE_URL/health"
 curl "$API_BASE_URL/areas"
 curl "$API_BASE_URL/areas/ET-001"
 curl -X POST "$API_BASE_URL/areas/ET-001/explain"
+curl "$API_BASE_URL/areas/ET-001/cost-estimate"
+curl -X POST "$API_BASE_URL/areas/ET-001/field-brief"
+curl -X POST "$API_BASE_URL/cost-estimate" \
+  -H "content-type: application/json" \
+  -d '{"areaId":"CUSTOM","totalAreaHa":100,"plantableFraction":0.5}'
+curl -X POST "$API_BASE_URL/budget-plan" \
+  -H "content-type: application/json" \
+  -d '{"budget":100000,"currency":"EUR","riskTolerance":"medium","minimumCarbonCreditReadiness":"medium"}'
 curl -X POST "$API_BASE_URL/scenario" \
   -H "content-type: application/json" \
   -d '{"areaIds":["ET-001","ET-002"]}'
@@ -123,6 +137,7 @@ curl -X POST "$API_BASE_URL/field-brief" \
 
 - `processed/scored_areas.json` is generated from fixed example data.
 - Lambda falls back to mock areas when S3 data is absent.
+- Cost estimates use mock indicators and placeholder configurable assumptions.
 - Bedrock falls back to deterministic text when disabled or unavailable.
 - EventBridge trigger is present as a disabled rule.
 - Step Functions does not yet start a real ECS task.

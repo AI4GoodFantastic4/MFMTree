@@ -29,5 +29,19 @@ if __name__ == "__main__":
         "/areas/ET-001/explain",
         path_parameters={"areaId": "ET-001"},
     )
+    invoke(
+        "GET /areas/{areaId}/cost-estimate",
+        "GET",
+        "/areas/ET-001/cost-estimate",
+        path_parameters={"areaId": "ET-001"},
+    )
+    invoke(
+        "POST /areas/{areaId}/field-brief",
+        "POST",
+        "/areas/ET-001/field-brief",
+        path_parameters={"areaId": "ET-001"},
+    )
+    invoke("POST /cost-estimate", "POST", "/cost-estimate", {"areaId": "CUSTOM", "totalAreaHa": 100, "plantableFraction": 0.5})
+    invoke("POST /budget-plan", "POST", "/budget-plan", {"budget": 100000, "currency": "EUR"})
     invoke("POST /scenario", "POST", "/scenario", {"areaIds": ["ET-001", "ET-002"]})
     invoke("POST /field-brief", "POST", "/field-brief", {"areaId": "ET-001"})

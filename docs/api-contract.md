@@ -66,6 +66,66 @@ returns mock data.
 
 Returns one area by id.
 
+### `GET /areas/{areaId}/cost-estimate`
+
+Returns the deterministic planning cost estimate for one mock or processed area.
+
+```json
+{
+  "areaId": "ET-001",
+  "estimatedPlantableHa": 1260,
+  "plantingDensityPerHa": 1100,
+  "estimatedSeedlingsRequired": 1386000,
+  "expectedSurvivalRate": 0.72,
+  "expectedSurvivingTrees": 997920,
+  "estimatedBasePlantingCost": 705600,
+  "estimatedMaintenanceCost": 434700,
+  "estimatedLogisticsCost": 69552,
+  "estimatedReplantingMortalityBuffer": 77616,
+  "estimatedFieldValidationCost": 690,
+  "estimatedMrvMonitoringSetupCost": 5000,
+  "estimatedCarbonProjectDevelopmentCost": 15000,
+  "contingency": 196223.7,
+  "estimatedTotalCost": 1504381.7,
+  "estimatedCostPerHa": 1193.95,
+  "estimatedCostPerSurvivingTree": 1.51,
+  "estimatedNetTCO2e": 52436.16,
+  "estimatedCostPerTCO2e": 28.69,
+  "currency": "EUR",
+  "costConfidence": "high",
+  "costDrivers": ["moderate distance to road", "manageable slope"],
+  "costWarnings": ["Cost values are configurable planning estimates, not financial commitments."]
+}
+```
+
+### `POST /cost-estimate`
+
+Accepts an indicator payload and optional assumptions override.
+
+```json
+{
+  "indicators": {
+    "areaId": "CUSTOM",
+    "totalAreaHa": 1800,
+    "plantableFraction": 0.7,
+    "distanceToRoadKm": 8,
+    "meanSlopeDeg": 9,
+    "rainfallReliability": "medium",
+    "soilSuitability": "medium",
+    "protectedAreaConcern": "low",
+    "recentDeforestationRisk": "low",
+    "expectedSurvivalRate": 0.72,
+    "expectedTCO2ePerHa": 68
+  },
+  "assumptionsOverride": {
+    "seedlingUnitCost": 0.3
+  }
+}
+```
+
+The same endpoint also accepts indicators directly at the top level for quick
+testing.
+
 ### `POST /areas/{areaId}/explain`
 
 Returns a concise Bedrock or fallback explanation.
@@ -79,7 +139,92 @@ Returns a concise Bedrock or fallback explanation.
 
 The prompt instructs Bedrock to avoid invented scores, use only provided
 evidence, explain uncertainty, frame the output as pre-screening, mention onsite
-expert validation, and keep language NGO-friendly.
+expert validation, avoid invented cost numbers, and keep language NGO-friendly.
+
+When a cost estimate is available, the explanation includes provided cost
+drivers and assumptions that need field validation.
+
+### `POST /areas/{areaId}/field-brief`
+
+Returns a field brief for one area including cost-validation questions:
+
+- confirm actual plantable hectares
+- confirm local seedling cost
+- confirm local labor availability and cost
+- confirm road/access constraints
+- confirm water/rainfall constraints
+- confirm land tenure
+- confirm recent deforestation history
+- confirm whether the carbon-credit pathway is realistic
+
+### `POST /areas/{areaId}/carbon-readiness`
+
+Returns a deterministic MVP readiness screen based on recent deforestation risk,
+plantable area size, monitoring feasibility, land tenure uncertainty,
+protected-area concern, and carbon potential.
+
+```json
+{
+  "areaId": "ET-001",
+  "carbonReadiness": "medium",
+  "currentLabel": "medium",
+  "strengths": [],
+  "blockers": [],
+  "caveats": [
+    "Deterministic MVP screen only.",
+    "Not carbon-credit certification.",
+    "Onsite expert validation and legal review are required."
+  ]
+}
+```
+
+### `POST /budget-plan`
+
+Accepts:
+
+```json
+{
+  "budget": 100000,
+  "currency": "EUR",
+  "riskTolerance": "medium",
+  "minimumCarbonCreditReadiness": "medium",
+  "objective": "maximize_risk_adjusted_carbon_roi"
+}
+```
+
+Returns a deterministic validation/investigation shortlist:
+
+```json
+{
+  "budget": 100000,
+  "currency": "EUR",
+  "selectedAreas": [
+    {
+      "areaId": "ET-001",
+      "name": "Example Woreda",
+      "estimatedValidationOrInitialCost": 50821.45,
+      "estimatedTotalProjectCost": 1504381.7,
+      "carbonRoiScore": 52,
+      "reason": "Priority 86, carbon readiness medium, high cost confidence, main driver: moderate distance to road"
+    },
+    {
+      "areaId": "ET-005",
+      "name": "Balanced Woreda Candidate",
+      "estimatedValidationOrInitialCost": 39691.27,
+      "estimatedTotalProjectCost": 1133375.6,
+      "carbonRoiScore": 47,
+      "reason": "Priority 76, carbon readiness medium, high cost confidence, main driver: moderate distance to road"
+    }
+  ],
+  "estimatedSpend": 90512.72,
+  "remainingBudget": 9487.28,
+  "caveats": [
+    "Uses configurable planning assumptions.",
+    "Not a final project budget.",
+    "Requires onsite expert validation."
+  ]
+}
+```
 
 ### `POST /scenario`
 
@@ -124,8 +269,12 @@ Response:
 }
 ```
 
+This legacy endpoint is kept for compatibility. Prefer
+`POST /areas/{areaId}/field-brief`.
+
 ## What Is Mocked
 
 - Area scoring data when no processed S3 object exists
 - Bedrock output when `BEDROCK_ENABLED=false` or a Bedrock call fails
 - Scenario modelling beyond simple area comparison or priority ranking
+- Cost indicators and GIS-derived cost drivers until real geospatial extraction is integrated

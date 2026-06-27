@@ -3,20 +3,20 @@ import os
 from typing import Any
 
 
-def generate_area_explanation(area: dict[str, Any]) -> str:
+def generate_area_explanation(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     prompt = _base_prompt(
         "Explain why this area received its current reforestation priority score.",
-        {"area": area},
+        {"area": area, "costEstimate": cost_estimate},
     )
-    return _invoke_or_mock(prompt, _mock_area_explanation(area))
+    return _invoke_or_mock(prompt, _mock_area_explanation(area, cost_estimate))
 
 
-def generate_field_brief(area: dict[str, Any]) -> str:
+def generate_field_brief(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     prompt = _base_prompt(
         "Create a short field brief for NGO staff preparing onsite validation.",
-        {"area": area},
+        {"area": area, "costEstimate": cost_estimate},
     )
-    return _invoke_or_mock(prompt, _mock_field_brief(area))
+    return _invoke_or_mock(prompt, _mock_field_brief(area, cost_estimate))
 
 
 def compare_areas(area_a: dict[str, Any], area_b: dict[str, Any]) -> str:
@@ -34,10 +34,12 @@ def _base_prompt(task: str, payload: dict[str, Any]) -> str:
             task,
             "Rules:",
             "- Do not invent scores.",
+            "- Do not invent cost numbers.",
             "- Use only the provided evidence and fields.",
             "- Explain uncertainty clearly.",
             "- Frame output as pre-screening, not final approval.",
             "- Mention that onsite expert validation is required.",
+            "- If a cost estimate is provided, explain the main cost drivers and assumptions that need validation.",
             "- Keep output concise and NGO-friendly.",
             "Data:",
             json.dumps(payload, ensure_ascii=True, indent=2),
@@ -83,22 +85,40 @@ def _invoke_or_mock(prompt: str, fallback: str) -> str:
     return fallback
 
 
-def _mock_area_explanation(area: dict[str, Any]) -> str:
+def _mock_area_explanation(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     evidence = "; ".join(area.get("evidence", [])) or "no evidence supplied"
     uncertainties = "; ".join(area.get("uncertainties", [])) or "no uncertainty supplied"
+    cost_sentence = ""
+    if cost_estimate:
+        drivers = "; ".join(cost_estimate.get("costDrivers", [])[:3])
+        cost_sentence = (
+            f" Estimated total cost is {cost_estimate['estimatedTotalCost']} "
+            f"{cost_estimate['currency']} with {cost_estimate['costConfidence']} confidence. "
+            f"Main cost drivers: {drivers}."
+        )
     return (
         f"{area['name']} is a pre-screening priority because the scoring engine assigned "
         f"a priority score of {area['priorityScore']} using the provided indicators. "
-        f"Supporting evidence: {evidence}. Key uncertainties: {uncertainties}. "
+        f"Supporting evidence: {evidence}. Key uncertainties: {uncertainties}.{cost_sentence} "
         "This is not final approval; onsite expert validation is required."
     )
 
 
-def _mock_field_brief(area: dict[str, Any]) -> str:
+def _mock_field_brief(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     flags = ", ".join(area.get("riskFlags", [])) or "none listed"
+    cost_line = ""
+    if cost_estimate:
+        cost_line = (
+            f" Planning estimate: {cost_estimate['estimatedTotalCost']} {cost_estimate['currency']} total, "
+            f"{cost_estimate['estimatedCostPerHa']} per plantable ha, "
+            f"{cost_estimate['estimatedCostPerSurvivingTree']} per surviving tree. "
+        )
     return (
-        f"Field brief for {area['name']}: validate land tenure, species suitability, "
-        f"community priorities, slope/access assumptions, and risk flags ({flags}). "
+        f"Field brief for {area['name']}: {cost_line}"
+        "confirm actual plantable hectares, local seedling cost, local labor availability and cost, "
+        "road/access constraints, water/rainfall constraints, land tenure, recent deforestation history, "
+        "and whether a carbon-credit pathway is realistic. "
+        f"Also validate species suitability, community priorities, and risk flags ({flags}). "
         f"The current recommended action is: {area['recommendedAction']}. "
         "Use this as pre-screening only; onsite expert validation is required."
     )
