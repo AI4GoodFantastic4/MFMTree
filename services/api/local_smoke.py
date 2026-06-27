@@ -23,6 +23,8 @@ if __name__ == "__main__":
     invoke("GET /health", "GET", "/health")
     invoke("GET /areas", "GET", "/areas")
     invoke("GET /scores", "GET", "/scores")
+    invoke("GET /data-sources", "GET", "/data-sources")
+    invoke("GET /data-sources/{sourceId}", "GET", "/data-sources/sentinel2_surface_reflectance", path_parameters={"sourceId": "sentinel2_surface_reflectance"})
     invoke("GET /areas/{areaId}", "GET", "/areas/ET-001", path_parameters={"areaId": "ET-001"})
     invoke(
         "POST /areas/{areaId}/explain",

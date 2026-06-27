@@ -20,6 +20,7 @@ resource "aws_lambda_function" "api" {
       PROCESSED_DATA_BUCKET = aws_s3_bucket.processed_data.bucket
       GEOMETRY_KEY          = "geometry/areas.geojson"
       INDICATORS_KEY        = "indicators/latest.json"
+      DATA_SOURCES_KEY      = "metadata/data_sources.json"
       ALLOW_MOCK_DATA       = tostring(var.allow_mock_data)
       BEDROCK_ENABLED       = tostring(var.bedrock_enabled)
       BEDROCK_MODEL_ID      = var.bedrock_model_id

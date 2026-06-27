@@ -23,6 +23,19 @@ also persist default scores at:
 s3://<processed-bucket>/scores/default_scores.json
 ```
 
+The data-source catalog lives at:
+
+```text
+s3://<processed-bucket>/metadata/data_sources.json
+```
+
+`GET /data-sources` returns that S3 manifest when present. If it is missing,
+the API returns the built-in list extracted from the original Earth Engine
+script, including Sentinel-2, Landsat 5/7/8/9, Sentinel-1, ESA WorldCover,
+Hansen GFC, biomass carbon, CHIRPS, SoilGrids, SRTM, WDPA, GHSL population, the
+OCHA/HDX admin placeholder, FAO GAUL fallback, and the planned CIFOR-ICRAF /
+MEFCC-WRI species suitability source.
+
 ## GeoJSON Contract
 
 `areas.geojson` must be a `FeatureCollection`. Every feature must have a stable
@@ -65,6 +78,22 @@ The script uploads:
 ```text
 data/sample/areas.geojson
   -> s3://$PROCESSED_BUCKET/geometry/areas.geojson
+```
+
+Upload a data-source manifest:
+
+```bash
+export PROCESSED_BUCKET="$(terraform -chdir=infra output -raw processed_data_bucket_name)"
+./scripts/upload_data_sources.sh
+```
+
+By default, the script uploads the complete built-in catalog extracted from the
+Earth Engine script.
+
+Override the input file if you provide your own full catalog:
+
+```bash
+DATA_SOURCES_PATH=/path/to/data_sources.json ./scripts/upload_data_sources.sh
 ```
 
 ## Backend Behavior

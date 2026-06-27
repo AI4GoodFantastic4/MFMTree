@@ -24,6 +24,8 @@ locals {
     "GET /areas",
     "GET /areas/{areaId}",
     "GET /areas/{areaId}/cost-estimate",
+    "GET /data-sources",
+    "GET /data-sources/{sourceId}",
     "GET /scores",
     "POST /areas/{areaId}/explain",
     "POST /areas/{areaId}/field-brief",

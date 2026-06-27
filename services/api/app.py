@@ -4,6 +4,7 @@ from typing import Any
 from bedrock import compare_areas, generate_area_explanation, generate_field_brief
 from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost_assumptions, plan_budget
 from data import DataUnavailableError, get_area, load_area_collection, load_areas
+from data_sources import get_data_source, load_data_sources
 from scoring_engine import apply_scores, score_areas, scored_area_list
 
 
@@ -36,6 +37,17 @@ def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if route_key == "GET /scores" or (method == "GET" and path == "/scores"):
         areas, source = load_areas()
         return _json(200, {"scoresByArea": score_areas(areas), "source": source})
+
+    if route_key == "GET /data-sources" or (method == "GET" and path == "/data-sources"):
+        sources, source = load_data_sources()
+        return _json(200, {"dataSources": sources, "source": source})
+
+    if route_key == "GET /data-sources/{sourceId}" or (method == "GET" and path.startswith("/data-sources/")):
+        source_id = _path_param(event, "sourceId") or path.rsplit("/", 1)[-1]
+        data_source = get_data_source(source_id)
+        if not data_source:
+            return _json(404, {"message": f"Data source not found: {source_id}"})
+        return _json(200, data_source)
 
     if route_key == "GET /areas/{areaId}/cost-estimate" or (
         method == "GET" and path.startswith("/areas/") and path.endswith("/cost-estimate")

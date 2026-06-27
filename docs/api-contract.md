@@ -101,6 +101,33 @@ regenerating or refetching geometry.
 }
 ```
 
+### `GET /data-sources`
+
+Returns the data-source catalog used by the GEE/GIS pipeline. Lambda first tries
+`s3://<processed-bucket>/metadata/data_sources.json`; if that object is absent,
+it returns the built-in catalog extracted from the original Earth Engine script.
+
+```json
+{
+  "dataSources": [
+    {
+      "sourceId": "sentinel2_surface_reflectance",
+      "name": "Sentinel-2 Surface Reflectance Harmonized",
+      "provider": "Copernicus",
+      "geeAssetId": "COPERNICUS/S2_SR_HARMONIZED",
+      "category": "satellite_optical",
+      "status": "gee_available",
+      "usedFor": ["current NDVI", "current NDMI", "vegetation condition"]
+    }
+  ],
+  "source": "s3"
+}
+```
+
+### `GET /data-sources/{sourceId}`
+
+Returns one data-source catalog entry.
+
 ### `GET /areas/{areaId}/cost-estimate`
 
 Returns the deterministic planning cost estimate for one mock or processed area.
