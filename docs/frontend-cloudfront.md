@@ -116,6 +116,8 @@ FRONTEND_BUCKET_NAME=... CLOUDFRONT_DISTRIBUTION_ID=... ./scripts/deploy_fronten
 
 - Replace the mock map with CesiumJS or MapLibre/Cesium once real GeoJSON or 3D
   tiles are available.
-- Render real `scored_areas.geojson` polygons from the processed S3 bucket/API.
+- Render real `geometry/areas.geojson` polygons from the processed S3 bucket/API.
+- Join `/scores` and `/scenario` responses by stable `areaId` so map colors
+  update without regenerating GeoJSON.
 - Add authentication before exposing non-demo project data.
 - Add CloudFront custom domain and ACM certificate for production.

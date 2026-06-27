@@ -185,7 +185,7 @@ def estimate_area_cost(
 
 
 def estimate_cost_for_area(area: dict[str, Any], assumptions_override: dict[str, Any] | None = None) -> dict[str, Any]:
-    indicators = dict(area.get("costIndicators") or {})
+    indicators = dict(area.get("indicators") or area.get("costIndicators") or {})
     indicators.setdefault("areaId", area.get("areaId"))
     return estimate_area_cost(indicators, assumptions_override)
 
@@ -341,7 +341,7 @@ def _portfolio_reason(area: dict[str, Any], estimate: dict[str, Any]) -> str:
 
 def _passes_risk(area: dict[str, Any], risk_tolerance: str) -> bool:
     risk_score = _number(area.get("riskScore"), 50)
-    indicators = area.get("costIndicators") or {}
+    indicators = area.get("indicators") or area.get("costIndicators") or {}
     recent_risk = str(indicators.get("recentDeforestationRisk", "")).lower()
     if risk_tolerance == "low":
         return risk_score <= 30 and recent_risk != "high"

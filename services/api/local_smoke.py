@@ -22,6 +22,7 @@ def invoke(route_key: str, method: str, path: str, body: dict | None = None, pat
 if __name__ == "__main__":
     invoke("GET /health", "GET", "/health")
     invoke("GET /areas", "GET", "/areas")
+    invoke("GET /scores", "GET", "/scores")
     invoke("GET /areas/{areaId}", "GET", "/areas/ET-001", path_parameters={"areaId": "ET-001"})
     invoke(
         "POST /areas/{areaId}/explain",
@@ -43,5 +44,6 @@ if __name__ == "__main__":
     )
     invoke("POST /cost-estimate", "POST", "/cost-estimate", {"areaId": "CUSTOM", "totalAreaHa": 100, "plantableFraction": 0.5})
     invoke("POST /budget-plan", "POST", "/budget-plan", {"budget": 100000, "currency": "EUR"})
-    invoke("POST /scenario", "POST", "/scenario", {"areaIds": ["ET-001", "ET-002"]})
+    invoke("POST /scenario", "POST", "/scenario", {"areaIds": ["ET-001", "ET-002"], "weights": {"carbon": 0.5, "costEfficiency": 0.2}})
+    invoke("POST /compare-areas", "POST", "/compare-areas", {"areaIds": ["ET-001", "ET-002"]})
     invoke("POST /field-brief", "POST", "/field-brief", {"areaId": "ET-001"})

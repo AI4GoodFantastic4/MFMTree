@@ -4,6 +4,7 @@ from typing import Any
 from bedrock import compare_areas, generate_area_explanation, generate_field_brief
 from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost_assumptions, plan_budget
 from data import get_area, load_areas
+from scoring_engine import apply_scores, score_areas, scored_area_list
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -16,7 +17,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     if route_key == "GET /areas" or (method == "GET" and path == "/areas"):
         areas, source = load_areas()
-        return _json(200, {"areas": areas, "source": source})
+        return _json(200, {"areas": scored_area_list(areas), "source": source})
+
+    if route_key == "GET /scores" or (method == "GET" and path == "/scores"):
+        areas, source = load_areas()
+        return _json(200, {"scoresByArea": score_areas(areas), "source": source})
 
     if route_key == "GET /areas/{areaId}/cost-estimate" or (
         method == "GET" and path.startswith("/areas/") and path.endswith("/cost-estimate")
@@ -25,21 +30,22 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, estimate_cost_for_area(area))
+        return _json(200, estimate_cost_for_area(apply_scores(area)))
 
     if route_key == "GET /areas/{areaId}" or (method == "GET" and path.startswith("/areas/")):
         area_id = _path_param(event, "areaId") or path.rsplit("/", 1)[-1]
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, area)
+        return _json(200, apply_scores(area))
 
     if route_key == "POST /areas/{areaId}/explain" or (method == "POST" and path.endswith("/explain")):
         area_id = _path_param(event, "areaId") or path.split("/")[-2]
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, {"areaId": area_id, "explanation": generate_area_explanation(area, estimate_cost_for_area(area))})
+        scored_area = apply_scores(area)
+        return _json(200, {"areaId": area_id, "explanation": generate_area_explanation(scored_area, estimate_cost_for_area(scored_area))})
 
     if route_key == "POST /areas/{areaId}/field-brief" or (
         method == "POST" and path.startswith("/areas/") and path.endswith("/field-brief")
@@ -48,7 +54,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(area, estimate_cost_for_area(area))})
+        scored_area = apply_scores(area)
+        return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(scored_area, estimate_cost_for_area(scored_area))})
 
     if route_key == "POST /areas/{areaId}/carbon-readiness" or (
         method == "POST" and path.startswith("/areas/") and path.endswith("/carbon-readiness")
@@ -57,7 +64,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, _carbon_readiness(area))
+        return _json(200, _carbon_readiness(apply_scores(area)))
 
     if route_key == "POST /cost-estimate" or (method == "POST" and path == "/cost-estimate"):
         return _handle_cost_estimate(event)
@@ -68,13 +75,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if route_key == "POST /scenario" or (method == "POST" and path == "/scenario"):
         return _handle_scenario(event)
 
+    if route_key == "POST /compare-areas" or (method == "POST" and path == "/compare-areas"):
+        return _handle_compare_areas(event)
+
     if route_key == "POST /field-brief" or (method == "POST" and path == "/field-brief"):
         body = _body(event)
         area_id = body.get("areaId", "ET-001")
         area = get_area(area_id)
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
-        return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(area, estimate_cost_for_area(area))})
+        scored_area = apply_scores(area)
+        return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(scored_area, estimate_cost_for_area(scored_area))})
 
     return _json(404, {"message": f"Unsupported route: {method} {path or route_key}"})
 
@@ -94,7 +105,7 @@ def _handle_budget_plan(event: dict[str, Any]) -> dict[str, Any]:
     risk_tolerance = body.get("riskTolerance", "medium")
     minimum_readiness = body.get("minimumCarbonCreditReadiness", "medium")
     areas, source = load_areas()
-    plan = plan_budget(areas, budget, currency, risk_tolerance, minimum_readiness)
+    plan = plan_budget(scored_area_list(areas), budget, currency, risk_tolerance, minimum_readiness)
     plan["source"] = source
     plan["objective"] = body.get("objective", "maximize_risk_adjusted_carbon_roi")
     return _json(200, plan)
@@ -102,38 +113,100 @@ def _handle_budget_plan(event: dict[str, Any]) -> dict[str, Any]:
 
 def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
     body = _body(event)
+    weights = body.get("weights") if isinstance(body.get("weights"), dict) else body
     area_ids = body.get("areaIds") or [body.get("areaIdA"), body.get("areaIdB")]
     area_ids = [area_id for area_id in area_ids if area_id]
+    areas, source = load_areas()
+    scores_by_area = score_areas(areas, weights)
+    ranked = sorted(scores_by_area.values(), key=lambda item: item.get("priorityScore", 0), reverse=True)
 
     if len(area_ids) >= 2:
-        area_a = get_area(area_ids[0])
-        area_b = get_area(area_ids[1])
+        area_a = next((area for area in areas if area.get("areaId") == area_ids[0]), None)
+        area_b = next((area for area in areas if area.get("areaId") == area_ids[1]), None)
         if not area_a or not area_b:
             return _json(404, {"message": "One or more scenario areas were not found."})
+        scored_a = apply_scores(area_a, weights)
+        scored_b = apply_scores(area_b, weights)
         return _json(
             200,
             {
                 "scenario": body.get("name", "Area comparison"),
-                "areaIds": [area_a["areaId"], area_b["areaId"]],
-                "analysis": compare_areas(area_a, area_b),
+                "source": source,
+                "areaIds": [scored_a["areaId"], scored_b["areaId"]],
+                "scoresByArea": scores_by_area,
+                "topAreaIds": [area["areaId"] for area in ranked[:3]],
+                "analysis": compare_areas(scored_a, scored_b),
             },
         )
 
-    areas, source = load_areas()
-    ranked = sorted(areas, key=lambda item: item.get("priorityScore", 0), reverse=True)
     return _json(
         200,
         {
             "scenario": body.get("name", "Default prioritisation"),
             "source": source,
             "topAreaIds": [area["areaId"] for area in ranked[:3]],
-            "analysis": "Scenario mock ranks areas by priorityScore. Field validation remains required before approval.",
+            "scoresByArea": scores_by_area,
+            "analysis": "Scenario recalculates deterministic scores from indicator inputs and scenario weights. Geometry is unchanged; onsite validation remains required before approval.",
+        },
+    )
+
+
+def _handle_compare_areas(event: dict[str, Any]) -> dict[str, Any]:
+    body = _body(event)
+    weights = body.get("weights") if isinstance(body.get("weights"), dict) else body
+    area_ids = body.get("areaIds") or [body.get("areaIdA"), body.get("areaIdB")]
+    area_ids = [area_id for area_id in area_ids if area_id]
+    if len(area_ids) < 2:
+        return _json(400, {"message": "Provide two area IDs using areaIds or areaIdA/areaIdB."})
+
+    area_a = get_area(area_ids[0])
+    area_b = get_area(area_ids[1])
+    if not area_a or not area_b:
+        return _json(404, {"message": "One or more comparison areas were not found."})
+
+    scored_a = apply_scores(area_a, weights)
+    scored_b = apply_scores(area_b, weights)
+    return _json(
+        200,
+        {
+            "areaIds": [scored_a["areaId"], scored_b["areaId"]],
+            "scoresByArea": {
+                scored_a["areaId"]: {
+                    key: scored_a[key]
+                    for key in (
+                        "areaId",
+                        "priorityScore",
+                        "carbonScore",
+                        "treeSurvivalScore",
+                        "costEfficiencyScore",
+                        "carbonCreditReadiness",
+                        "riskScore",
+                        "riskFlags",
+                        "recommendedAction",
+                    )
+                },
+                scored_b["areaId"]: {
+                    key: scored_b[key]
+                    for key in (
+                        "areaId",
+                        "priorityScore",
+                        "carbonScore",
+                        "treeSurvivalScore",
+                        "costEfficiencyScore",
+                        "carbonCreditReadiness",
+                        "riskScore",
+                        "riskFlags",
+                        "recommendedAction",
+                    )
+                },
+            },
+            "analysis": compare_areas(scored_a, scored_b),
         },
     )
 
 
 def _carbon_readiness(area: dict[str, Any]) -> dict[str, Any]:
-    indicators = area.get("costIndicators") or {}
+    indicators = area.get("indicators") or area.get("costIndicators") or {}
     estimate = estimate_cost_for_area(area)
     blockers: list[str] = []
     strengths: list[str] = []

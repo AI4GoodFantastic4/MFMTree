@@ -59,8 +59,19 @@ export default function App() {
     setComparing(true);
     setAdvisorState("comparing");
     const result = await runScenario({ name: "Hackathon area comparison", areaIds: [areaA, areaB] });
+    if (result.scoresByArea) {
+      setAreas((currentAreas) =>
+        currentAreas.map((area) => ({
+          ...area,
+          ...(result.scoresByArea?.[area.areaId] || {}),
+        })),
+      );
+    }
     setScenarioResult(result.analysis);
-    const hasRisk = [areaA, areaB].some((id) => (areas.find((area) => area.areaId === id)?.riskScore || 0) > 55);
+    const hasRisk = [areaA, areaB].some((id) => {
+      const dynamicRisk = result.scoresByArea?.[id]?.riskScore;
+      return (dynamicRisk ?? areas.find((area) => area.areaId === id)?.riskScore ?? 0) > 55;
+    });
     setAdvisorState(hasRisk ? "warning" : "recommendation");
     setComparing(false);
   }

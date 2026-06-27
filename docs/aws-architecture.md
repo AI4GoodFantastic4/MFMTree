@@ -8,8 +8,9 @@ External Data Sources
   -> S3 upload / EventBridge trigger placeholder
   -> Step Functions orchestration skeleton
   -> ECS Fargate GIS processing container
-  -> Reforestation scoring output
+  -> Area-level indicators and geometry
   -> S3 Processed Data
+  -> Backend scoring engine
   -> API Gateway + Lambda backend
   -> Amazon Bedrock reasoning layer
   -> 3D web app
@@ -29,21 +30,30 @@ No NAT Gateway is created. No RDS/PostGIS database is deployed in this phase.
 4. Step Functions receives upload events once the rule is enabled.
 5. The Step Functions MVP state machine currently uses Pass states.
 6. The future production state will run the GIS processor as an ECS Fargate task.
-7. The processor writes `processed/scored_areas.json` to the processed bucket.
+7. The processor should write stable geometry and semi-static indicators to the
+   processed bucket.
+8. Lambda calculates dynamic scores from indicators and current assumptions.
 
-The GIS processor currently creates deterministic mock scored areas. It includes
-TODOs for GeoPandas, Rasterio, GDAL, Shapely, Pandas, and NumPy.
+The legacy GIS processor currently creates deterministic mock scored areas for
+demo compatibility. The target layout is documented in
+[`data-separation.md`](data-separation.md). Future processors should write
+`geometry/areas.geojson`, `indicators/latest.json`, and run metadata rather than
+baking final scenario-dependent investment decisions into map output.
 
 ## User Interaction Flow
 
-1. The 3D web app requests scored areas through API Gateway.
-2. Lambda reads `processed/scored_areas.json` from S3.
-3. If the S3 object is missing, Lambda falls back to mock data.
+1. The 3D web app requests areas through API Gateway.
+2. Lambda reads `geometry/areas.geojson` and `indicators/latest.json` from S3.
+3. If those objects are missing, Lambda falls back to legacy/mock data.
 4. The user clicks an area in the 3D map.
 5. The app requests area details and an explanation.
-6. The scoring fields remain authoritative.
+6. The backend scoring engine calculates current scores from indicators.
 7. Bedrock explains the scoring output using only supplied evidence.
 8. Experts validate the recommendation onsite before any final decision.
+
+When users change scenario weights, budgets, cost assumptions, or risk
+tolerance, the frontend calls the backend and receives updated scores keyed by
+`areaId`. The frontend updates map colors/styles without regenerating geometry.
 
 ## MVP Architecture
 

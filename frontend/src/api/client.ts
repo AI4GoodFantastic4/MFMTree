@@ -14,6 +14,8 @@ export type Area = {
   recommendedAction: string;
   evidence: string[];
   uncertainties: string[];
+  geometry?: unknown;
+  indicators?: Record<string, unknown>;
 };
 
 export type CostEstimate = {
@@ -35,7 +37,15 @@ export type CostEstimate = {
 export type ScenarioResponse = {
   scenario: string;
   areaIds?: string[];
+  topAreaIds?: string[];
+  scoresByArea?: Record<string, Partial<Area>>;
   analysis: string;
+};
+
+export type ScenarioRequest = {
+  areaIds?: string[];
+  name?: string;
+  weights?: Record<string, number>;
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -148,13 +158,19 @@ export async function explainArea(areaId: string): Promise<string> {
   return data.explanation || fallback;
 }
 
-export async function runScenario(weights: { areaIds?: string[]; name?: string }): Promise<ScenarioResponse> {
+export async function runScenario(weights: ScenarioRequest): Promise<ScenarioResponse> {
   const fallback = {
     scenario: weights.name || "Mock comparison",
     areaIds: weights.areaIds,
+    scoresByArea: {},
     analysis: "Mock comparison ranks areas by priority, carbon return, access, and risk. Onsite validation remains required.",
   };
   return request<ScenarioResponse>("/scenario", fallback, "POST", weights);
+}
+
+export async function getScores(): Promise<Record<string, Partial<Area>>> {
+  const data = await request<{ scoresByArea: Record<string, Partial<Area>> }>("/scores", { scoresByArea: {} });
+  return data.scoresByArea || {};
 }
 
 export async function getCostEstimate(areaId: string): Promise<CostEstimate | null> {

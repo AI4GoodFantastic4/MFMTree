@@ -49,22 +49,51 @@ Returns service status.
 
 ### `GET /areas`
 
-Returns scored areas. Lambda first tries
-`s3://<processed-bucket>/processed/scored_areas.json`; if that read fails it
-returns mock data.
+Returns area metadata plus the latest backend-calculated scores. Lambda first
+tries to join:
+
+- `s3://<processed-bucket>/geometry/areas.geojson`
+- `s3://<processed-bucket>/indicators/latest.json`
+
+If those objects are missing, it falls back to the legacy
+`processed/scored_areas.json` object and then mock data.
 
 ```json
 {
   "areas": [],
-  "source": "s3"
+  "source": "s3:geometry+indicators"
 }
 ```
 
-`source` is either `s3` or `mock`.
+`source` can be `s3:geometry+indicators`, `s3:legacy-scored-areas`, or `mock`.
 
 ### `GET /areas/{areaId}`
 
-Returns one area by id.
+Returns one area by id, with stable metadata/geometry, indicators, and dynamic
+scores merged for API convenience.
+
+### `GET /scores`
+
+Returns the latest default deterministic backend scores keyed by stable
+`areaId`. This endpoint lets the frontend recolor existing map entities without
+regenerating or refetching geometry.
+
+```json
+{
+  "scoresByArea": {
+    "ET-001": {
+      "areaId": "ET-001",
+      "priorityScore": 82,
+      "carbonScore": 76,
+      "treeSurvivalScore": 72,
+      "costEfficiencyScore": 71,
+      "carbonCreditReadiness": "medium",
+      "riskScore": 23
+    }
+  },
+  "source": "mock"
+}
+```
 
 ### `GET /areas/{areaId}/cost-estimate`
 
@@ -228,12 +257,23 @@ Returns a deterministic validation/investigation shortlist:
 
 ### `POST /scenario`
 
+Recalculates deterministic scores from indicator inputs and scenario weights.
+Geometry is not changed.
+
 Compares two areas when the request includes two ids:
 
 ```json
 {
   "name": "Southwest comparison",
-  "areaIds": ["ET-001", "ET-002"]
+  "areaIds": ["ET-001", "ET-002"],
+  "weights": {
+    "carbon": 0.4,
+    "survival": 0.2,
+    "costEfficiency": 0.25,
+    "livelihood": 0.05,
+    "biodiversity": 0.05,
+    "riskPenalty": 0.1
+  }
 }
 ```
 
@@ -243,12 +283,32 @@ Response:
 {
   "scenario": "Southwest comparison",
   "areaIds": ["ET-001", "ET-002"],
+  "scoresByArea": {
+    "ET-001": {
+      "areaId": "ET-001",
+      "priorityScore": 82
+    }
+  },
+  "topAreaIds": ["ET-001", "ET-005", "ET-002"],
   "analysis": "..."
 }
 ```
 
-If no two ids are provided, the endpoint returns a mock ranking by
-`priorityScore`.
+If no two ids are provided, the endpoint returns recalculated scores for all
+areas and a top-area ordering. The frontend should join `scoresByArea` to map
+entities by `areaId`.
+
+### `POST /compare-areas`
+
+Compares two areas based on deterministic scores, cost/risk/readiness fields,
+and evidence. It is an explicit alias for comparison flows; `/scenario` remains
+the broader endpoint for score recalculation.
+
+```json
+{
+  "areaIds": ["ET-001", "ET-002"]
+}
+```
 
 ### `POST /field-brief`
 
@@ -276,5 +336,5 @@ This legacy endpoint is kept for compatibility. Prefer
 
 - Area scoring data when no processed S3 object exists
 - Bedrock output when `BEDROCK_ENABLED=false` or a Bedrock call fails
-- Scenario modelling beyond simple area comparison or priority ranking
+- Scenario modelling beyond deterministic weighted score recalculation
 - Cost indicators and GIS-derived cost drivers until real geospatial extraction is integrated

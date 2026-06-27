@@ -126,12 +126,18 @@ Planned Google Cloud Storage outputs:
 - `restoration_score_raster.tif`
 - local task metadata at `/tmp/gee_processor_metadata.json`
 
+The `restoration_score` exports preserve the original Code Editor prototype and
+should be treated as QA/prototype layers. Final investment scores that depend
+on user weights, budgets, cost assumptions, or risk tolerance belong in the AWS
+backend scoring engine.
+
 The future bridge is:
 
 ```text
 Google Cloud Storage export output
-  -> sync/copy to AWS S3 processed-data bucket
-  -> API reads scored outputs from S3
+  -> sync/copy geometry and indicator outputs to AWS S3 processed-data bucket
+  -> API reads geometry/areas.geojson and indicators/latest.json
+  -> backend calculates dynamic scores keyed by areaId
 ```
 
 Cross-cloud sync is intentionally not implemented yet.

@@ -3,6 +3,8 @@ import os
 from typing import Any
 
 
+GEOMETRY_KEY = "geometry/areas.geojson"
+INDICATORS_KEY = "indicators/latest.json"
 SCORED_AREAS_KEY = "processed/scored_areas.json"
 
 
@@ -205,13 +207,18 @@ def load_areas() -> tuple[list[dict[str, Any]], str]:
         import boto3
 
         client = boto3.client("s3")
-        response = client.get_object(Bucket=bucket, Key=SCORED_AREAS_KEY)
-        payload = response["Body"].read().decode("utf-8")
-        data = json.loads(payload)
+        geometry = _read_json(client, bucket, GEOMETRY_KEY)
+        indicators = _read_json(client, bucket, INDICATORS_KEY)
+        if geometry and indicators:
+            merged = _merge_geometry_and_indicators(geometry, indicators)
+            if merged:
+                return merged, "s3:geometry+indicators"
+
+        data = _read_json(client, bucket, SCORED_AREAS_KEY)
         if isinstance(data, dict) and isinstance(data.get("areas"), list):
-            return data["areas"], "s3"
+            return data["areas"], "s3:legacy-scored-areas"
         if isinstance(data, list):
-            return data, "s3"
+            return data, "s3:legacy-scored-areas"
     except Exception as exc:
         print(f"Falling back to mock areas after S3 read failed: {exc}")
 
@@ -221,3 +228,52 @@ def load_areas() -> tuple[list[dict[str, Any]], str]:
 def get_area(area_id: str) -> dict[str, Any] | None:
     areas, _ = load_areas()
     return next((area for area in areas if area.get("areaId") == area_id), None)
+
+
+def _read_json(client: Any, bucket: str, key: str) -> Any | None:
+    try:
+        response = client.get_object(Bucket=bucket, Key=key)
+        payload = response["Body"].read().decode("utf-8")
+        return json.loads(payload)
+    except Exception as exc:
+        print(f"Could not read s3://{bucket}/{key}: {exc}")
+        return None
+
+
+def _merge_geometry_and_indicators(geometry: Any, indicators_payload: Any) -> list[dict[str, Any]]:
+    indicators_by_id = _indicator_map(indicators_payload)
+    areas: list[dict[str, Any]] = []
+
+    if isinstance(geometry, dict) and geometry.get("type") == "FeatureCollection":
+        for feature in geometry.get("features", []):
+            properties = dict(feature.get("properties") or {})
+            area_id = properties.get("areaId") or properties.get("id")
+            if not area_id:
+                continue
+            areas.append(
+                {
+                    **properties,
+                    "areaId": area_id,
+                    "geometry": feature.get("geometry"),
+                    "indicators": indicators_by_id.get(area_id, {}),
+                }
+            )
+        return areas
+
+    if isinstance(geometry, dict) and isinstance(geometry.get("areas"), list):
+        for area in geometry["areas"]:
+            area_id = area.get("areaId")
+            if area_id:
+                areas.append({**area, "indicators": indicators_by_id.get(area_id, {})})
+    return areas
+
+
+def _indicator_map(indicators_payload: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(indicators_payload, dict):
+        return {}
+    raw_areas = indicators_payload.get("areas")
+    if isinstance(raw_areas, list):
+        return {item["areaId"]: item for item in raw_areas if isinstance(item, dict) and item.get("areaId")}
+    if isinstance(raw_areas, dict):
+        return raw_areas
+    return {key: value for key, value in indicators_payload.items() if isinstance(value, dict)}

@@ -229,6 +229,8 @@ def compute_reforestation_investment_score(indicators: dict[str, Any]) -> list[d
 
 def export_scored_areas(areas: list[dict[str, Any]], output_key: str) -> Path:
     LOGGER.info("Stage 6/7: export scored areas")
+    # TODO: replace this legacy combined output with geometry/areas.geojson and
+    # indicators/latest.json. Dynamic scores are calculated in the API backend.
     output_path = Path("/tmp") / Path(output_key).name
     payload = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
