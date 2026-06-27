@@ -320,8 +320,16 @@ def _validate_feature_collection(payload: Any) -> dict[str, Any] | None:
             continue
         properties = feature.get("properties")
         geometry = feature.get("geometry")
-        if not isinstance(properties, dict) or not properties.get("areaId") or not isinstance(geometry, dict):
+        if not isinstance(properties, dict) or not isinstance(geometry, dict):
             continue
+        area_id = _stable_area_id(properties)
+        if not area_id:
+            continue
+        properties = dict(properties)
+        properties.setdefault("areaId", area_id)
+        properties.setdefault("name", _area_name(properties))
+        properties.setdefault("region", "Ethiopia")
+        feature = {**feature, "properties": properties}
         valid_features.append(feature)
     if not valid_features:
         return None
@@ -335,15 +343,19 @@ def _merge_geometry_and_indicators(geometry: Any, indicators_payload: Any) -> li
     if isinstance(geometry, dict) and geometry.get("type") == "FeatureCollection":
         for feature in geometry.get("features", []):
             properties = dict(feature.get("properties") or {})
-            area_id = properties.get("areaId") or properties.get("id")
+            area_id = _stable_area_id(properties)
             if not area_id:
                 continue
+            properties.setdefault("areaId", area_id)
+            properties.setdefault("name", _area_name(properties))
+            properties.setdefault("region", "Ethiopia")
+            indicators = _normalize_indicators({**_indicators_from_properties(properties), **indicators_by_id.get(area_id, {})})
             areas.append(
                 {
                     **properties,
                     "areaId": area_id,
                     "geometry": feature.get("geometry"),
-                    "indicators": indicators_by_id.get(area_id, {}),
+                    "indicators": indicators,
                 }
             )
         return areas
@@ -361,10 +373,161 @@ def _indicator_map(indicators_payload: Any) -> dict[str, dict[str, Any]]:
         return {}
     raw_areas = indicators_payload.get("areas")
     if isinstance(raw_areas, list):
-        return {item["areaId"]: item for item in raw_areas if isinstance(item, dict) and item.get("areaId")}
+        return {
+            _stable_area_id(item): _normalize_indicators(item)
+            for item in raw_areas
+            if isinstance(item, dict) and _stable_area_id(item)
+        }
     if isinstance(raw_areas, dict):
-        return raw_areas
-    return {key: value for key, value in indicators_payload.items() if isinstance(value, dict)}
+        return {str(key): _normalize_indicators(value) for key, value in raw_areas.items() if isinstance(value, dict)}
+    return {str(key): _normalize_indicators(value) for key, value in indicators_payload.items() if isinstance(value, dict)}
+
+
+def _stable_area_id(properties: dict[str, Any]) -> str | None:
+    raw_id = properties.get("areaId") or properties.get("area_id") or properties.get("id")
+    if raw_id:
+        return str(raw_id)
+    grid_id = properties.get("grid_id")
+    if grid_id is not None:
+        return f"ET-GRID-{grid_id}"
+    return None
+
+
+def _area_name(properties: dict[str, Any]) -> str:
+    if properties.get("name"):
+        return str(properties["name"])
+    if properties.get("grid_id") is not None:
+        return f"Grid cell {properties['grid_id']}"
+    return str(properties.get("areaId") or properties.get("area_id") or "Candidate area")
+
+
+def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(indicators)
+    if normalized.get("areaId") is None:
+        area_id = _stable_area_id(normalized)
+        if area_id:
+            normalized["areaId"] = area_id
+
+    mappings = {
+        "area_ha": "totalAreaHa",
+        "slope_deg": "meanSlopeDeg",
+        "current_ndvi": "meanNdvi",
+        "carbon_tonnes_per_ha_2010": "carbonTonnesPerHa2010",
+        "population_local_mean_5km": "populationLocalMean5km",
+        "near_protected_area": "nearProtectedArea",
+        "protected_area_share": "protectedAreaShare",
+        "restorable_land_share": "restorableLandShare",
+        "restorable_land_pct": "restorableLandPct",
+        "target_project_area_ha": "targetProjectAreaHa",
+        "plant_fit": "plantFit",
+        "annual_rain_mm": "annualRainMm",
+        "degradation_proxy": "degradationProxy",
+        "ndvi_decline_proxy": "ndviDeclineProxy",
+        "soil_pawc_0_30cm_cm3cm3": "soilPawc030Cm",
+    }
+    for source, target in mappings.items():
+        if source in normalized and target not in normalized:
+            normalized[target] = normalized[source]
+
+    if normalized.get("plantableFraction") is None:
+        if normalized.get("restorable_land_pct") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["restorable_land_pct"])
+        elif normalized.get("restorable_land_share") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["restorable_land_share"], already_fraction=True)
+
+    if normalized.get("expectedSurvivalRate") is None:
+        plant_fit = _number_or_none(normalized.get("plant_fit"))
+        water_soil = _number_or_none(normalized.get("water_soil_proxy"))
+        if plant_fit is not None:
+            normalized["expectedSurvivalRate"] = _fraction(plant_fit)
+        elif water_soil is not None:
+            normalized["expectedSurvivalRate"] = _fraction(water_soil)
+
+    if normalized.get("expectedTCO2ePerHa") is None:
+        carbon_t_ha = _number_or_none(normalized.get("carbon_tonnes_per_ha_2010"))
+        if carbon_t_ha is not None:
+            normalized["expectedTCO2ePerHa"] = round(max(carbon_t_ha * 3.667, 0), 2)
+
+    if normalized.get("rainfallReliability") is None:
+        rainfall = _number_or_none(normalized.get("annual_rain_mm"))
+        if rainfall is not None:
+            normalized["rainfallReliability"] = "high" if rainfall >= 1000 else "medium" if rainfall >= 650 else "low"
+
+    if normalized.get("soilSuitability") is None:
+        water_soil = _number_or_none(normalized.get("water_soil_proxy"))
+        pawc = _number_or_none(normalized.get("soil_pawc_0_30cm_cm3cm3"))
+        proxy = water_soil if water_soil is not None else (pawc * 100 if pawc is not None else None)
+        if proxy is not None:
+            normalized["soilSuitability"] = "high" if proxy >= 75 else "medium" if proxy >= 45 else "low"
+
+    if normalized.get("protectedAreaConcern") is None:
+        protected = _number_or_none(normalized.get("protected_area_share"))
+        near = _number_or_none(normalized.get("near_protected_area"))
+        signal = protected if protected is not None else near
+        if signal is not None:
+            normalized["protectedAreaConcern"] = "high" if signal >= 0.5 else "partial" if signal > 0.05 else "low"
+
+    if normalized.get("recentDeforestationRisk") is None:
+        decline = _number_or_none(normalized.get("ndvi_decline_proxy"))
+        degradation = _number_or_none(normalized.get("degradation_proxy"))
+        signal = decline if decline is not None else degradation
+        if signal is not None:
+            normalized["recentDeforestationRisk"] = "high" if signal >= 20 else "medium" if signal >= 5 else "low"
+
+    if normalized.get("populationNearby") is None:
+        population_proxy = _number_or_none(normalized.get("population_local_mean_5km"))
+        if population_proxy is not None:
+            normalized["populationNearby"] = round(population_proxy * 1000)
+
+    return normalized
+
+
+def _indicators_from_properties(properties: dict[str, Any]) -> dict[str, Any]:
+    indicator_keys = {
+        "areaId",
+        "grid_id",
+        "restoration_score",
+        "carbon_proxy",
+        "biodiversity_proxy",
+        "livelihood_proxy",
+        "water_soil_proxy",
+        "current_ndvi",
+        "current_ndmi",
+        "degradation_proxy",
+        "ndvi_decline_proxy",
+        "elevation_m",
+        "annual_rain_mm",
+        "estimated_cost_million_eur",
+        "environmental_roi",
+        "restorable_land_pct",
+        "restorable_land_share",
+        "target_project_area_ha",
+        "area_ha",
+        "carbon_tonnes_per_ha_2010",
+        "slope_deg",
+        "population_local_mean_5km",
+        "settlement_pressure_1km_pct",
+        "near_protected_area",
+        "protected_area_share",
+        "plant_fit",
+        "soil_pawc_0_30cm_cm3cm3",
+    }
+    return {key: properties[key] for key in indicator_keys if key in properties}
+
+
+def _number_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fraction(value: Any, already_fraction: bool = False) -> float:
+    number = _number_or_none(value)
+    if number is None:
+        return 0.0
+    fraction = number if already_fraction or number <= 1 else number / 100
+    return max(0.0, min(1.0, fraction))
 
 
 def _mock_indicators_by_area() -> dict[str, dict[str, Any]]:

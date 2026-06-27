@@ -106,6 +106,43 @@ Outputs include:
 - `ecr_repository_url`
 - `step_function_arn`
 
+## Frontend
+
+The real hackathon frontend lives in:
+
+```text
+ai4goodhackathonmfmtree/
+```
+
+Create its environment file:
+
+```bash
+cp ai4goodhackathonmfmtree/.env.example ai4goodhackathonmfmtree/.env
+```
+
+Set `VITE_API_BASE_URL` to the deployed API Gateway URL. For local demo-only
+mode, leave it blank and the frontend will use bundled fallback data.
+
+Run locally:
+
+```bash
+make frontend-install
+make frontend-dev
+```
+
+Build static assets:
+
+```bash
+make frontend-build
+./scripts/prepare_frontend_static.sh ai4goodhackathonmfmtree
+```
+
+Deploy to S3/CloudFront after Terraform has created frontend hosting:
+
+```bash
+make frontend-deploy
+```
+
 ## Test Deployed Endpoints
 
 After `terraform apply`, use the `api_base_url` output:
@@ -141,4 +178,5 @@ curl -X POST "$API_BASE_URL/field-brief" \
 - Bedrock falls back to deterministic text when disabled or unavailable.
 - EventBridge trigger is present as a disabled rule.
 - Step Functions does not yet start a real ECS task.
-- The frontend is not included in this skeleton.
+- The frontend falls back to local demo cells when `VITE_API_BASE_URL` is empty
+  or the backend cannot be reached.

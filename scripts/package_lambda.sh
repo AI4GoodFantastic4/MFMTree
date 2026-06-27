@@ -10,7 +10,7 @@ ZIP_PATH="$DIST_DIR/lambda.zip"
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
 
-cp "$API_DIR"/app.py "$API_DIR"/bedrock.py "$API_DIR"/cost_estimator.py "$API_DIR"/data.py "$API_DIR"/data_sources.py "$API_DIR"/scoring_engine.py "$BUILD_DIR"/
+cp "$API_DIR"/app.py "$API_DIR"/bedrock.py "$API_DIR"/cost_estimator.py "$API_DIR"/data.py "$API_DIR"/data_sources.py "$API_DIR"/scoring_engine.py "$API_DIR"/voice.py "$BUILD_DIR"/
 cp "$API_DIR"/cost_assumptions.json "$BUILD_DIR"/
 
 if [[ -s "$API_DIR/requirements.txt" ]] && grep -Ev '^\s*(#|$)' "$API_DIR/requirements.txt" >/dev/null; then

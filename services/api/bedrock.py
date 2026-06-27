@@ -5,8 +5,12 @@ from typing import Any
 
 def generate_area_explanation(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     prompt = _base_prompt(
-        "Explain why this area received its current reforestation priority score.",
-        {"area": area, "costEstimate": cost_estimate},
+        (
+            "Write a 3-5 sentence area explanation for NGO staff. "
+            "Start with whether the area should be validated soon, explain the main evidence and risks, "
+            "and do not use markdown headings or tables."
+        ),
+        {"area": _compact_area(area), "costEstimate": cost_estimate},
     )
     return _invoke_or_mock(prompt, _mock_area_explanation(area, cost_estimate))
 
@@ -14,17 +18,78 @@ def generate_area_explanation(area: dict[str, Any], cost_estimate: dict[str, Any
 def generate_field_brief(area: dict[str, Any], cost_estimate: dict[str, Any] | None = None) -> str:
     prompt = _base_prompt(
         "Create a short field brief for NGO staff preparing onsite validation.",
-        {"area": area, "costEstimate": cost_estimate},
+        {"area": _compact_area(area), "costEstimate": cost_estimate},
     )
     return _invoke_or_mock(prompt, _mock_field_brief(area, cost_estimate))
 
 
-def compare_areas(area_a: dict[str, Any], area_b: dict[str, Any]) -> str:
+def compare_areas(
+    area_a: dict[str, Any],
+    area_b: dict[str, Any],
+    cost_a: dict[str, Any] | None = None,
+    cost_b: dict[str, Any] | None = None,
+) -> str:
+    recommended = area_a if area_a.get("priorityScore", 0) >= area_b.get("priorityScore", 0) else area_b
     prompt = _base_prompt(
-        "Compare these two areas for reforestation pre-screening priority.",
-        {"area_a": area_a, "area_b": area_b},
+        (
+            "Write a natural human-language comparison summary for these two areas. "
+            "Use 3-5 sentences. Mention the deterministic recommended area, the main tradeoff, "
+            "uncertainty or onsite validation, and avoid JSON or bullet points. "
+            "Do not sound too technical. Do not overrule the deterministic recommendation."
+        ),
+        {
+            "deterministicRecommendation": {
+                "recommendedAreaId": recommended.get("areaId"),
+                "recommendedAreaName": recommended.get("name"),
+                "reason": "The backend scoring engine selected this area by priority score and risk-adjusted indicators.",
+            },
+            "area_a": _compact_area(area_a),
+            "area_a_costEstimate": cost_a,
+            "area_b": _compact_area(area_b),
+            "area_b_costEstimate": cost_b,
+        },
     )
     return _invoke_or_mock(prompt, _mock_comparison(area_a, area_b))
+
+
+def _compact_area(area: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "areaId",
+        "name",
+        "region",
+        "priorityScore",
+        "carbonScore",
+        "treeSurvivalScore",
+        "costEfficiencyScore",
+        "carbonCreditReadiness",
+        "livelihoodScore",
+        "biodiversityScore",
+        "riskScore",
+        "riskFlags",
+        "recommendedAction",
+        "evidence",
+        "uncertainties",
+    )
+    indicators = area.get("indicators") or area.get("costIndicators") or {}
+    indicator_keys = (
+        "totalAreaHa",
+        "plantableFraction",
+        "meanNdvi",
+        "vegetationTrend",
+        "recentDeforestationRisk",
+        "rainfallReliability",
+        "meanSlopeDeg",
+        "soilSuitability",
+        "distanceToRoadKm",
+        "protectedAreaConcern",
+        "populationNearby",
+        "expectedSurvivalRate",
+        "expectedTCO2ePerHa",
+    )
+    return {
+        **{key: area.get(key) for key in keys if area.get(key) is not None},
+        "indicators": {key: indicators.get(key) for key in indicator_keys if indicators.get(key) is not None},
+    }
 
 
 def _base_prompt(task: str, payload: dict[str, Any]) -> str:
@@ -39,6 +104,8 @@ def _base_prompt(task: str, payload: dict[str, Any]) -> str:
             "- Explain uncertainty clearly.",
             "- Frame output as pre-screening, not final approval.",
             "- Mention that onsite expert validation is required.",
+            "- Do not claim to issue, certify, or guarantee carbon credits.",
+            "- Explain that carbon-credit readiness is only a preliminary signal.",
             "- If a cost estimate is provided, explain the main cost drivers and assumptions that need validation.",
             "- Keep output concise and NGO-friendly.",
             "Data:",
@@ -55,30 +122,24 @@ def _invoke_or_mock(prompt: str, fallback: str) -> str:
     try:
         import boto3
 
-        model_id = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+        model_id = os.environ.get("BEDROCK_MODEL_ID", "us.amazon.nova-lite-v1:0")
         client = boto3.client("bedrock-runtime")
-        response = client.invoke_model(
+        response = client.converse(
             modelId=model_id,
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(
+            messages=[
                 {
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 500,
-                    "temperature": 0.2,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [{"type": "text", "text": prompt}],
-                        }
-                    ],
+                    "role": "user",
+                    "content": [{"text": prompt}],
                 }
-            ),
+            ],
+            inferenceConfig={"maxTokens": 500, "temperature": 0.2},
         )
-        body = json.loads(response["body"].read())
-        content = body.get("content", [])
+        content = response.get("output", {}).get("message", {}).get("content", [])
         if content and isinstance(content, list):
-            return "\n".join(part.get("text", "") for part in content if part.get("type") == "text").strip()
+            text = "\n".join(part.get("text", "") for part in content if part.get("text")).strip()
+            if text:
+                print(f"Bedrock call succeeded with model: {model_id}")
+                return text
     except Exception as exc:
         print(f"Bedrock call failed; using deterministic fallback: {exc}")
 

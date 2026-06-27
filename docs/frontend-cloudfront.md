@@ -2,32 +2,34 @@
 
 ## What It Is
 
-The `frontend/` app is a lightweight Vite + React + TypeScript hackathon demo
-for the reforestation prioritisation platform. It connects to the API Gateway
-backend when available and falls back to local mock data when API calls fail.
+The `ai4goodhackathonmfmtree/` app is the real Vite + React + TypeScript
+frontend for the reforestation prioritisation platform. It connects to the API
+Gateway backend when `VITE_API_BASE_URL` is configured and falls back to local
+demo data when API calls fail.
 
 The UI shows:
 
-- mock GIS-style Ethiopia candidate map
+- Mapbox GIS-style Ethiopia candidate map
 - clickable candidate areas
 - score dashboard
 - cost estimate and carbon-credit readiness
 - field brief and AI advisor text
 - two-area comparison workflow
-- lightweight SVG/CSS AI advisor avatar
+- dynamic score recoloring without refetching geometry
 
 ## API Connection
 
-Create `frontend/.env`:
+Create `ai4goodhackathonmfmtree/.env`:
 
 ```bash
-cp frontend/.env.example frontend/.env
+cp ai4goodhackathonmfmtree/.env.example ai4goodhackathonmfmtree/.env
 ```
 
 Set:
 
 ```bash
 VITE_API_BASE_URL=https://k79zw48ktl.execute-api.us-west-2.amazonaws.com
+VITE_MAPBOX_TOKEN=your-mapbox-token
 ```
 
 After a fresh Terraform apply, use:
@@ -56,8 +58,11 @@ make frontend-build
 The static output is written to:
 
 ```text
-frontend/dist/
+ai4goodhackathonmfmtree/.output/public/
 ```
+
+The app uses TanStack Start/Nitro. For S3 hosting, `scripts/prepare_frontend_static.sh`
+renders the built server once and writes `.output/public/index.html` before sync.
 
 ## Terraform Hosting Resources
 
@@ -93,10 +98,11 @@ make frontend-deploy
 The script:
 
 1. installs frontend dependencies if needed
-2. builds `frontend/dist`
-3. reads S3 bucket and CloudFront distribution id from Terraform outputs
-4. syncs files to S3
-5. creates a CloudFront invalidation
+2. builds `ai4goodhackathonmfmtree/.output`
+3. renders `.output/public/index.html` for static S3 hosting
+4. reads S3 bucket and CloudFront distribution id from Terraform outputs
+5. syncs `.output/public` to S3
+6. creates a CloudFront invalidation
 
 You can override output lookup with:
 
@@ -106,18 +112,19 @@ FRONTEND_BUCKET_NAME=... CLOUDFRONT_DISTRIBUTION_ID=... ./scripts/deploy_fronten
 
 ## What Is Mocked
 
-- The map is a stylized mock GIS panel, not CesiumJS.
-- Candidate geometry is mocked as positioned polygon buttons when API geometry
-  is unavailable.
+- The map is Mapbox-based, not CesiumJS yet.
+- Candidate geometry is loaded from `GET /areas` when available and normalized
+  by stable `feature.properties.areaId`.
 - API failures fall back to local mock area data.
 - Comparison reasoning falls back to deterministic mock text.
+- Cost values are configurable planning estimates, not final budgets.
 
 ## Next Replacements
 
-- Replace the mock map with CesiumJS or MapLibre/Cesium once real GeoJSON or 3D
-  tiles are available.
-- Render real `geometry/areas.geojson` polygons from the processed S3 bucket/API.
-- Join `/scores` and `/scenario` responses by stable `areaId` so map colors
-  update without regenerating GeoJSON.
+- Replace Mapbox with CesiumJS or 3D tiles if full 3D terrain visualization is
+  needed.
+- Expand real `geometry/areas.geojson` from sample polygons to production
+  admin/restoration candidate geometries.
+- Add richer UI for `/budget-plan` and carbon-readiness details.
 - Add authentication before exposing non-demo project data.
 - Add CloudFront custom domain and ACM certificate for production.

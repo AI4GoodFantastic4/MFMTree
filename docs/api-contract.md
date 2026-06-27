@@ -195,7 +195,20 @@ Returns a concise Bedrock or fallback explanation.
 ```json
 {
   "areaId": "ET-001",
-  "explanation": "..."
+  "summary": "This area is a strong candidate for field validation...",
+  "explanation": "This area is a strong candidate for field validation...",
+  "recommendation": "High-priority field validation",
+  "evidenceBullets": [
+    "medium rainfall reliability",
+    "9 degree mean slope"
+  ],
+  "risks": [
+    "field validation required",
+    "land tenure unknown"
+  ],
+  "caveat": "This is a pre-screening result and requires onsite expert validation.",
+  "carbonCreditReadiness": "medium",
+  "costEstimate": {}
 }
 ```
 
@@ -343,6 +356,32 @@ the broader endpoint for score recalculation.
 }
 ```
 
+Response includes a human-readable narrative for the HabtamuAI advisor plus
+structured evidence for collapsible UI details:
+
+```json
+{
+  "areaIds": ["ET-001", "ET-002"],
+  "recommendedAreaId": "ET-001",
+  "recommendedAreaName": "Example Woreda",
+  "recommendation": "Validate Example Woreda first for field review.",
+  "confidence": "medium",
+  "summary": "Example Woreda should be validated first...",
+  "narrativeSummary": "Example Woreda should be validated first...",
+  "llmExplanation": "Example Woreda should be validated first...",
+  "keyTradeoffs": ["Example Woreda has stronger cost efficiency..."],
+  "comparisonBullets": ["Example Woreda has stronger cost efficiency..."],
+  "riskFlags": ["field validation required"],
+  "riskWarnings": ["field validation required"],
+  "fieldValidationQuestions": ["Confirm actual plantable hectares..."],
+  "decisionBasis": ["priority score", "carbon readiness", "cost efficiency", "risk flags"],
+  "caveat": "This recommendation is based on available indicators and requires onsite expert validation.",
+  "costEstimatesByArea": {},
+  "scoresByArea": {},
+  "analysis": "..."
+}
+```
+
 ### `POST /field-brief`
 
 Request:
@@ -364,6 +403,34 @@ Response:
 
 This legacy endpoint is kept for compatibility. Prefer
 `POST /areas/{areaId}/field-brief`.
+
+### `POST /voice`
+
+Generates read-aloud audio for HabtamuAI using ElevenLabs. The frontend sends
+the narrative text; the backend reads the ElevenLabs API key from AWS Secrets
+Manager and returns MP3 audio as base64 JSON.
+
+Request:
+
+```json
+{
+  "text": "HabtamuAI recommends validating Grid cell 4400000059 first..."
+}
+```
+
+Response:
+
+```json
+{
+  "provider": "elevenlabs",
+  "voiceName": "Eric",
+  "contentType": "audio/mpeg",
+  "audioBase64": "..."
+}
+```
+
+If ElevenLabs is unavailable, the endpoint returns an error and the frontend
+falls back to browser speech synthesis.
 
 ## What Is Mocked
 

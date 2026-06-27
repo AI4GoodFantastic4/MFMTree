@@ -6,8 +6,12 @@ resource "aws_apigatewayv2_api" "http_api" {
     allow_credentials = false
     allow_headers     = ["content-type", "authorization"]
     allow_methods     = ["GET", "POST", "OPTIONS"]
-    allow_origins     = [var.frontend_origin]
-    max_age           = 300
+    allow_origins = distinct([
+      var.frontend_origin,
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+    ])
+    max_age = 300
   }
 }
 
@@ -34,7 +38,8 @@ locals {
     "POST /budget-plan",
     "POST /compare-areas",
     "POST /scenario",
-    "POST /field-brief"
+    "POST /field-brief",
+    "POST /voice"
   ])
 }
 

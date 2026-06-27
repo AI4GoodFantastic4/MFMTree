@@ -6,6 +6,7 @@ from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost
 from data import DataUnavailableError, get_area, load_area_collection, load_areas
 from data_sources import get_data_source, load_data_sources
 from scoring_engine import apply_scores, score_areas, scored_area_list
+from voice import VoiceGenerationError, generate_voice_audio
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -71,7 +72,9 @@ def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if not area:
             return _json(404, {"message": f"Area not found: {area_id}"})
         scored_area = apply_scores(area)
-        return _json(200, {"areaId": area_id, "explanation": generate_area_explanation(scored_area, estimate_cost_for_area(scored_area))})
+        cost_estimate = estimate_cost_for_area(scored_area)
+        explanation = generate_area_explanation(scored_area, cost_estimate)
+        return _json(200, _area_explanation_payload(scored_area, cost_estimate, explanation))
 
     if route_key == "POST /areas/{areaId}/field-brief" or (
         method == "POST" and path.startswith("/areas/") and path.endswith("/field-brief")
@@ -113,6 +116,9 @@ def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
         scored_area = apply_scores(area)
         return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(scored_area, estimate_cost_for_area(scored_area))})
 
+    if route_key == "POST /voice" or (method == "POST" and path == "/voice"):
+        return _handle_voice(event)
+
     return _json(404, {"message": f"Unsupported route: {method} {path or route_key}"})
 
 
@@ -121,6 +127,16 @@ def _handle_cost_estimate(event: dict[str, Any]) -> dict[str, Any]:
     assumptions_override = body.get("assumptionsOverride") or body.get("assumptions")
     indicators = body.get("indicators") if isinstance(body.get("indicators"), dict) else body
     return _json(200, estimate_area_cost(indicators, assumptions_override))
+
+
+def _handle_voice(event: dict[str, Any]) -> dict[str, Any]:
+    body = _body(event)
+    text = str(body.get("text") or "")
+    try:
+        return _json(200, generate_voice_audio(text))
+    except VoiceGenerationError as exc:
+        print(f"Voice generation failed; frontend should fall back to browser speech: {exc}")
+        return _json(502, {"message": str(exc), "provider": "elevenlabs"})
 
 
 def _handle_budget_plan(event: dict[str, Any]) -> dict[str, Any]:
@@ -153,6 +169,8 @@ def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
             return _json(404, {"message": "One or more scenario areas were not found."})
         scored_a = apply_scores(area_a, weights)
         scored_b = apply_scores(area_b, weights)
+        cost_a = estimate_cost_for_area(scored_a)
+        cost_b = estimate_cost_for_area(scored_b)
         return _json(
             200,
             {
@@ -161,7 +179,7 @@ def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
                 "areaIds": [scored_a["areaId"], scored_b["areaId"]],
                 "scoresByArea": scores_by_area,
                 "topAreaIds": [area["areaId"] for area in ranked[:3]],
-                "analysis": compare_areas(scored_a, scored_b),
+                "analysis": compare_areas(scored_a, scored_b, cost_a, cost_b),
             },
         )
 
@@ -192,10 +210,38 @@ def _handle_compare_areas(event: dict[str, Any]) -> dict[str, Any]:
 
     scored_a = apply_scores(area_a, weights)
     scored_b = apply_scores(area_b, weights)
+    cost_a = estimate_cost_for_area(scored_a)
+    cost_b = estimate_cost_for_area(scored_b)
+    recommended = scored_a if scored_a["priorityScore"] >= scored_b["priorityScore"] else scored_b
+    other = scored_b if recommended is scored_a else scored_a
+    confidence = _comparison_confidence(scored_a["priorityScore"], scored_b["priorityScore"])
+    key_tradeoffs = _comparison_tradeoffs(scored_a, scored_b)
+    risk_flags = _unique_list(recommended.get("riskFlags", []) + other.get("riskFlags", []))
+    field_questions = _comparison_field_questions()
+    narrative_summary = compare_areas(scored_a, scored_b, cost_a, cost_b)
+    caveat = "This recommendation is based on available indicators and requires onsite expert validation."
     return _json(
         200,
         {
             "areaIds": [scored_a["areaId"], scored_b["areaId"]],
+            "recommendedAreaId": recommended["areaId"],
+            "recommendedAreaName": recommended["name"],
+            "recommendation": f"Validate {recommended['name']} first for field review.",
+            "confidence": confidence,
+            "summary": narrative_summary,
+            "keyTradeoffs": key_tradeoffs,
+            "comparisonBullets": key_tradeoffs,
+            "riskFlags": risk_flags,
+            "riskWarnings": risk_flags,
+            "fieldValidationQuestions": field_questions,
+            "decisionBasis": ["priority score", "carbon readiness", "cost efficiency", "risk flags"],
+            "caveat": caveat,
+            "narrativeSummary": narrative_summary,
+            "llmExplanation": narrative_summary,
+            "costEstimatesByArea": {
+                scored_a["areaId"]: cost_a,
+                scored_b["areaId"]: cost_b,
+            },
             "scoresByArea": {
                 scored_a["areaId"]: {
                     key: scored_a[key]
@@ -226,9 +272,81 @@ def _handle_compare_areas(event: dict[str, Any]) -> dict[str, Any]:
                     )
                 },
             },
-            "analysis": compare_areas(scored_a, scored_b),
+            "analysis": narrative_summary,
         },
     )
+
+
+def _comparison_confidence(score_a: float, score_b: float) -> str:
+    delta = abs(score_a - score_b)
+    if delta >= 10:
+        return "high"
+    if delta >= 4:
+        return "medium"
+    return "low"
+
+
+def _area_explanation_payload(
+    area: dict[str, Any],
+    cost_estimate: dict[str, Any],
+    explanation: str,
+) -> dict[str, Any]:
+    return {
+        "areaId": area.get("areaId"),
+        "summary": explanation,
+        "explanation": explanation,
+        "recommendation": area.get("recommendedAction"),
+        "evidenceBullets": area.get("evidence", []),
+        "risks": _unique_list(area.get("riskFlags", []) + area.get("uncertainties", [])),
+        "riskFlags": area.get("riskFlags", []),
+        "uncertainties": area.get("uncertainties", []),
+        "caveat": "This is a pre-screening result and requires onsite expert validation.",
+        "carbonCreditReadiness": area.get("carbonCreditReadiness"),
+        "costEstimate": cost_estimate,
+    }
+
+
+def _comparison_tradeoffs(area_a: dict[str, Any], area_b: dict[str, Any]) -> list[str]:
+    return [
+        _higher_score_tradeoff("priority score", area_a, area_b, "priorityScore"),
+        _higher_score_tradeoff("carbon potential", area_a, area_b, "carbonScore"),
+        _higher_score_tradeoff("cost efficiency", area_a, area_b, "costEfficiencyScore"),
+        _lower_score_tradeoff("risk", area_a, area_b, "riskScore"),
+    ]
+
+
+def _higher_score_tradeoff(label: str, area_a: dict[str, Any], area_b: dict[str, Any], key: str) -> str:
+    a_value = _number(area_a.get(key), 0)
+    b_value = _number(area_b.get(key), 0)
+    if abs(a_value - b_value) < 2:
+        return f"{label.capitalize()} is broadly similar between both areas."
+    winner = area_a if a_value >= b_value else area_b
+    loser = area_b if winner is area_a else area_a
+    return f"{winner['name']} has stronger {label} than {loser['name']} ({round(max(a_value, b_value))} vs {round(min(a_value, b_value))})."
+
+
+def _lower_score_tradeoff(label: str, area_a: dict[str, Any], area_b: dict[str, Any], key: str) -> str:
+    a_value = _number(area_a.get(key), 0)
+    b_value = _number(area_b.get(key), 0)
+    if abs(a_value - b_value) < 2:
+        return f"{label.capitalize()} is broadly similar between both areas."
+    winner = area_a if a_value <= b_value else area_b
+    loser = area_b if winner is area_a else area_a
+    return f"{winner['name']} has the lower {label} signal than {loser['name']} ({round(min(a_value, b_value))} vs {round(max(a_value, b_value))})."
+
+
+def _comparison_field_questions() -> list[str]:
+    return [
+        "Confirm actual plantable hectares and restoration boundaries.",
+        "Confirm local seedling and labor costs.",
+        "Confirm access, road constraints, and wet-season transport risk.",
+        "Confirm land tenure, safeguards, and recent deforestation history.",
+        "Confirm whether a carbon-credit pathway is realistic.",
+    ]
+
+
+def _unique_list(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(item for item in items if item))
 
 
 def _carbon_readiness(area: dict[str, Any]) -> dict[str, Any]:

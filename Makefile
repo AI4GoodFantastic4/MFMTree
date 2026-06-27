@@ -9,7 +9,7 @@ ALLOW_MOCK_DATA ?= true
 TF_DIR := infra
 API_DIR := services/api
 LAMBDA_DIST := $(API_DIR)/dist/lambda.zip
-FRONTEND_DIR := frontend
+FRONTEND_DIR := ai4goodhackathonmfmtree
 
 .PHONY: help check fmt test lambda-package api-smoke processor-smoke frontend-install frontend-dev frontend-build frontend-deploy tf-init tf-fmt tf-validate tf-plan tf-apply clean
 
@@ -90,4 +90,4 @@ tf-apply: lambda-package
 		-var="allow_mock_data=$(ALLOW_MOCK_DATA)"
 
 clean:
-	@rm -rf $(API_DIR)/build $(API_DIR)/dist $(FRONTEND_DIR)/dist
+	@rm -rf $(API_DIR)/build $(API_DIR)/dist $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/.output

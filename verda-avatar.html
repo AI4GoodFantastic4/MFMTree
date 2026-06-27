@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HabtamuAI Avatar — portable widget</title>
+<style>
+  /* ============================================================
+     VERDA AVATAR — framework-agnostic. No build step, no deps.
+     Copy the <style id="verda-styles"> block + the .verda markup
+     into your app. Switch state by setting one attribute:
+         el.dataset.state = 'thinking';   // or use setVerdaState()
+     States: idle · thinking · comparing · speaking · recommendation · warning
+     ============================================================ */
+  body{margin:0;background:radial-gradient(120% 90% at 70% -10%,#0d2a2e,#081a1e 45%,#050f12);
+       font-family:'Space Grotesk',system-ui,sans-serif;color:#cfe3e0;min-height:100vh;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:40px}
+  .demo-title{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#5fe3b0}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px}
+  .controls button{font-family:inherit;font-size:13px;font-weight:600;color:#bfe7dd;cursor:pointer;
+       background:rgba(125,240,220,.06);border:1px solid rgba(125,240,220,.2);border-radius:9px;padding:9px 15px;transition:.15s}
+  .controls button:hover{background:rgba(125,240,220,.14)}
+  .controls button[aria-pressed="true"]{background:#1fb8a6;border-color:#34e0cb;color:#04201d}
+  .stage{display:flex;align-items:center;gap:40px}
+</style>
+
+<!-- ╔═══════════════════ COPY FROM HERE ═══════════════════╗ -->
+<style id="verda-styles">
+  .verda{--glow:#1fd6c0;--ring:rgba(120,230,210,.3);display:inline-block;line-height:0}
+  .verda svg{display:block;overflow:visible}
+  .verda[data-state="thinking"]      {--glow:#4ba9ee}
+  .verda[data-state="recommendation"]{--glow:#4fe39a}
+  .verda[data-state="warning"]       {--glow:#ecb24c}
+
+  /* show only the active face/extras */
+  .verda .v-face,.verda .v-extra{display:none}
+  .verda[data-state="idle"]           .v-idle,
+  .verda[data-state="thinking"]       .v-thinking,
+  .verda[data-state="comparing"]      .v-comparing,
+  .verda[data-state="speaking"]       .v-speaking,
+  .verda[data-state="recommendation"] .v-recommendation,
+  .verda[data-state="warning"]        .v-warning{display:block}
+
+  .verda .v-glow{fill:var(--glow);animation:v-glow 5s ease-in-out infinite}
+  .verda[data-state="thinking"] .v-glow{animation-duration:3s}
+  .verda[data-state="warning"]  .v-glow{animation:v-pulse 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  .verda[data-state="recommendation"] .v-glow{animation:v-glow-strong 3.2s ease-in-out infinite}
+  .verda .v-ring  {stroke:var(--ring)}
+
+  .v-cell{transform-box:fill-box;transform-origin:center}
+  @keyframes v-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3.5px)}}
+  @keyframes v-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  @keyframes v-glow{0%,100%{opacity:.5}50%{opacity:.85}}
+  @keyframes v-glow-strong{0%,100%{opacity:.7}50%{opacity:1}}
+  @keyframes v-spin{to{transform:rotate(360deg)}}
+  @keyframes v-blink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+  @keyframes v-sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  @keyframes v-dot{0%,100%{opacity:.25;transform:translateY(.5px)}50%{opacity:1;transform:translateY(-1px)}}
+  @keyframes v-eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+  @keyframes v-pulse{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:.95;transform:scale(1.07)}}
+  @keyframes v-rise{0%{opacity:0;transform:translateY(5px) scale(.8)}25%{opacity:.9}100%{opacity:0;transform:translateY(-12px) scale(1)}}
+  @keyframes v-barA{0%{transform:scaleY(.35)}55%,100%{transform:scaleY(1)}}
+  @keyframes v-barB{0%{transform:scaleY(.35)}55%,100%{transform:scaleY(.62)}}
+  @keyframes v-fadein{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion: reduce){.verda *{animation:none!important}}
+
+  .va-float{animation:v-float 6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  .va-spin{animation:v-spin 18s linear infinite;transform-box:fill-box;transform-origin:center}
+  .va-breathe{animation:v-breathe 6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  .va-sway{animation:v-sway 5s ease-in-out infinite;transform-box:fill-box;transform-origin:60px 34px}
+  .va-blink{animation:v-blink 5.5s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+</style>
+
+<template id="verda-template">
+  <span class="verda" data-state="idle" role="img" aria-label="HabtamuAI advisor">
+    <svg viewBox="0 0 120 132" width="200" height="220">
+      <defs>
+        <radialGradient id="vOrb" cx="38%" cy="32%" r="75%">
+          <stop offset="0%" stop-color="#1d4f50"/><stop offset="55%" stop-color="#0f3334"/><stop offset="100%" stop-color="#06181b"/>
+        </radialGradient>
+        <linearGradient id="vLeaf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#74e9aa"/><stop offset="100%" stop-color="#27b487"/>
+        </linearGradient>
+        <filter id="vSoft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
+        <clipPath id="vClip"><circle cx="60" cy="64" r="31.5"/></clipPath>
+      </defs>
+
+      <g class="va-float">
+        <!-- glow -->
+        <circle class="v-glow" cx="60" cy="64" r="41" filter="url(#vSoft)"/>
+
+        <!-- orbital data-ring (8 criteria) -->
+        <g transform="rotate(-20 60 64)">
+          <g class="va-spin">
+            <ellipse class="v-ring" cx="60" cy="64" rx="52" ry="16.5" fill="none" stroke-width="1"/>
+            <circle cx="112" cy="64" r="1.7" fill="#7df0dc"/><circle cx="96.8" cy="75.7" r="1.5" fill="#7df0dc"/>
+            <circle cx="60" cy="80.5" r="1.7" fill="#7df0dc"/><circle cx="23.2" cy="75.7" r="1.5" fill="#7df0dc"/>
+            <circle cx="8" cy="64" r="1.7" fill="#7df0dc"/><circle cx="23.2" cy="52.3" r="1.5" fill="#7df0dc"/>
+            <circle cx="60" cy="47.5" r="1.7" fill="#7df0dc"/><circle cx="96.8" cy="52.3" r="1.5" fill="#7df0dc"/>
+          </g>
+        </g>
+
+        <!-- orb body -->
+        <g class="va-breathe">
+          <circle cx="60" cy="64" r="31.5" fill="url(#vOrb)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+          <g clip-path="url(#vClip)" stroke="rgba(125,240,220,.16)" stroke-width=".8" fill="none">
+            <ellipse cx="60" cy="64" rx="31" ry="10"/><ellipse cx="60" cy="54" rx="29" ry="7"/>
+            <ellipse cx="60" cy="74" rx="29" ry="7"/><ellipse cx="60" cy="64" rx="11" ry="31"/>
+          </g>
+          <ellipse cx="50" cy="52" rx="9" ry="6" fill="rgba(255,255,255,.12)" transform="rotate(-30 50 52)"/>
+        </g>
+
+        <!-- seedling -->
+        <g class="va-sway">
+          <path d="M60 36 C60 28 60 23 60 16" stroke="#3fbf8f" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M60 25 C50 23 45 15 51 9 C58 12 61 19 60 25Z" fill="url(#vLeaf)"/>
+          <path d="M60 28 C70 26 75 18 69 12 C62 15 59 22 60 28Z" fill="url(#vLeaf)"/>
+          <path d="M60 31 L66 31" stroke="rgba(125,240,220,.6)" stroke-width="1" stroke-linecap="round"/>
+          <circle cx="67.5" cy="31" r="1.3" fill="#7df0dc"/><circle cx="60" cy="15.5" r="1.8" fill="#bdfbe6"/>
+        </g>
+
+        <!-- ============ FACES ============ -->
+        <!-- idle -->
+        <g class="v-face v-idle">
+          <circle cx="60" cy="64" r="12.5" fill="none" stroke="rgba(125,240,220,.55)" stroke-width="1.4"/>
+          <circle cx="60" cy="64" r="8" fill="#08211f"/>
+          <g class="va-blink"><circle cx="60" cy="64" r="4.6" fill="#34e0cb"/><circle cx="58.3" cy="62.2" r="1.5" fill="#dffff7"/></g>
+        </g>
+        <!-- thinking -->
+        <g class="v-face v-thinking">
+          <circle class="v-cell" cx="60" cy="64" r="12.5" fill="none" stroke="rgba(108,192,242,.6)" stroke-width="1.4" stroke-dasharray="5 4" style="animation:v-spin 4s linear infinite"/>
+          <circle class="v-cell" cx="54" cy="64" r="2.2" fill="#6cc0f2" style="animation:v-dot 1.4s ease-in-out infinite"/>
+          <circle class="v-cell" cx="60" cy="64" r="2.2" fill="#6cc0f2" style="animation:v-dot 1.4s ease-in-out .2s infinite"/>
+          <circle class="v-cell" cx="66" cy="64" r="2.2" fill="#6cc0f2" style="animation:v-dot 1.4s ease-in-out .4s infinite"/>
+          <circle cx="44" cy="58" r="1.3" fill="#9ad6f7" style="animation:v-rise 2.6s ease-in-out infinite"/>
+          <circle cx="78" cy="68" r="1.1" fill="#9ad6f7" style="animation:v-rise 2.6s ease-in-out 1.1s infinite"/>
+        </g>
+        <!-- comparing -->
+        <g class="v-face v-comparing">
+          <circle cx="60" cy="64" r="12.5" fill="none" stroke="rgba(125,240,220,.45)" stroke-width="1.3"/>
+          <path d="M60 53.5 A10.5 10.5 0 0 0 60 74.5Z" fill="#34e0cb" opacity=".92"/>
+          <path d="M60 53.5 A10.5 10.5 0 0 1 60 74.5Z" fill="#6cc0f2" opacity=".92"/>
+          <line x1="60" y1="51" x2="60" y2="77" stroke="#08211f" stroke-width="1.4"/>
+          <rect class="v-cell" x="54.5" y="59" width="2.6" height="9" rx="1" fill="#06181b" style="transform-origin:bottom;animation:v-barA 2.2s ease-in-out infinite"/>
+          <rect class="v-cell" x="62.9" y="59" width="2.6" height="9" rx="1" fill="#06181b" style="transform-origin:bottom;animation:v-barB 2.2s ease-in-out infinite"/>
+        </g>
+        <!-- speaking -->
+        <g class="v-face v-speaking">
+          <circle cx="60" cy="64" r="12.5" fill="none" stroke="rgba(95,227,170,.45)" stroke-width="1.3"/>
+          <rect class="v-cell" x="51.5" y="60" width="2.6" height="8"  rx="1.3" fill="#5fe3b0" style="animation:v-eq 1s ease-in-out infinite"/>
+          <rect class="v-cell" x="56"   y="58" width="2.6" height="12" rx="1.3" fill="#5fe3b0" style="animation:v-eq 1s ease-in-out .18s infinite"/>
+          <rect class="v-cell" x="60.5" y="57" width="2.6" height="14" rx="1.3" fill="#5fe3b0" style="animation:v-eq 1s ease-in-out .36s infinite"/>
+          <rect class="v-cell" x="65"   y="59" width="2.6" height="10" rx="1.3" fill="#5fe3b0" style="animation:v-eq 1s ease-in-out .54s infinite"/>
+        </g>
+        <!-- recommendation -->
+        <g class="v-face v-recommendation">
+          <circle cx="60" cy="64" r="12.5" fill="none" stroke="rgba(95,227,154,.85)" stroke-width="1.6" style="animation:v-glow-strong 2.4s ease-in-out infinite"/>
+          <circle cx="60" cy="64" r="9" fill="#0c2a22"/>
+          <path d="M54.5 64.5 L58.5 68.5 L66 60" fill="none" stroke="#7cf0a8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="animation:v-fadein .6s ease-out"/>
+        </g>
+        <!-- warning -->
+        <g class="v-face v-warning v-cell" style="animation:v-pulse 2.4s ease-in-out infinite">
+          <circle cx="60" cy="64" r="12.5" fill="none" stroke="rgba(236,178,76,.8)" stroke-width="1.5"/>
+          <circle cx="60" cy="64" r="8.5" fill="#2a2110"/>
+          <rect x="58.7" y="58.5" width="2.6" height="6.8" rx="1.3" fill="#f1c25e"/>
+          <circle cx="60" cy="69" r="1.6" fill="#f1c25e"/>
+        </g>
+      </g>
+    </svg>
+  </span>
+</template>
+<!-- ╚═══════════════════ COPY TO HERE ═══════════════════╝ -->
+
+</head>
+<body>
+  <div class="demo-title">HabtamuAI · portable avatar widget</div>
+  <div class="stage">
+    <span id="big"></span>
+    <span id="small"></span>
+  </div>
+  <div class="controls" id="controls"></div>
+
+<script>
+  /* ---- the whole API: clone the template, set data-state ---- */
+  function makeVerda(size){
+    const node = document.getElementById('verda-template').content.firstElementChild.cloneNode(true);
+    const svg = node.querySelector('svg');
+    if(size){ svg.setAttribute('width', size); svg.setAttribute('height', Math.round(size*132/120)); }
+    return node;
+  }
+  function setVerdaState(el, state){ el.dataset.state = state; }
+
+  /* ---- demo wiring ---- */
+  const states = ['idle','thinking','comparing','speaking','recommendation','warning'];
+  const big = makeVerda(200), small = makeVerda(80);
+  document.getElementById('big').appendChild(big);
+  document.getElementById('small').appendChild(small);
+
+  const ctr = document.getElementById('controls');
+  states.forEach(s=>{
+    const b = document.createElement('button');
+    b.textContent = s;
+    b.setAttribute('aria-pressed', s==='idle');
+    b.onclick = ()=>{
+      setVerdaState(big, s); setVerdaState(small, s);
+      [...ctr.children].forEach(c=>c.setAttribute('aria-pressed', c===b));
+    };
+    ctr.appendChild(b);
+  });
+</script>
+</body>
+</html>

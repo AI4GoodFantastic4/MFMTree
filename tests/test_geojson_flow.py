@@ -101,6 +101,54 @@ class GeoJsonFlowTest(unittest.TestCase):
         self.assertIn("scoresByArea", response["body"])
         self.assertIn("ET-001", response["body"]["scoresByArea"])
 
+    def test_gee_geojson_grid_id_is_normalized_to_area_id(self) -> None:
+        gee_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "grid_id": 4360000079,
+                        "area_ha": 9824.23,
+                        "restorable_land_pct": 94.9,
+                        "current_ndvi": 0.216,
+                        "annual_rain_mm": 754,
+                        "slope_deg": 1.05,
+                        "plant_fit": 100,
+                        "carbon_tonnes_per_ha_2010": 8.56,
+                        "near_protected_area": 1,
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[39.16, 7.07], [39.25, 7.07], [39.25, 7.16], [39.16, 7.16], [39.16, 7.07]]],
+                    },
+                }
+            ],
+        }
+        path = Path("/tmp/mfmtree-gee-grid-test.geojson")
+        path.write_text(json.dumps(gee_geojson), encoding="utf-8")
+
+        with patch.dict(
+            os.environ,
+            {
+                "PROCESSED_BUCKET": "",
+                "PROCESSED_DATA_BUCKET": "",
+                "LOCAL_GEOJSON_PATH": str(path),
+                "ALLOW_MOCK_DATA": "false",
+            },
+            clear=False,
+        ):
+            response = invoke("GET /areas", "GET", "/areas")
+            scenario = invoke("POST /scenario", "POST", "/scenario", {"weights": {"carbon": 0.5}})
+
+        area_id = "ET-GRID-4360000079"
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(response["body"]["geojson"]["features"][0]["properties"]["areaId"], area_id)
+        self.assertEqual(response["body"]["areas"][0]["areaId"], area_id)
+        self.assertEqual(response["body"]["areas"][0]["indicators"]["totalAreaHa"], 9824.23)
+        self.assertAlmostEqual(response["body"]["areas"][0]["indicators"]["plantableFraction"], 0.949, places=3)
+        self.assertIn(area_id, scenario["body"]["scoresByArea"])
+
 
 if __name__ == "__main__":
     unittest.main()
