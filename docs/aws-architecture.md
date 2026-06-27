@@ -68,6 +68,8 @@ Likely production additions:
 - VPC design with private subnets and VPC endpoints
 - ECS service or Step Functions ECS RunTask with selected network placement
 - Real geospatial ETL using GDAL/Rasterio/GeoPandas
+- Earth Engine processor Fargate task that starts GCS exports, writes metadata,
+  then a future bridge syncs GCS outputs into the S3 processed-data bucket
 - Dataset lineage, scoring run metadata, and approval workflows
 - AuthN/AuthZ for NGO staff and expert reviewers
 - Frontend hosting through S3/CloudFront or Amplify

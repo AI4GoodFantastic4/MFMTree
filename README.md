@@ -36,8 +36,10 @@ future production extension and is not deployed yet.
 
 ```text
 infra/                  Terraform infrastructure
+frontend/               Vite + React demo frontend
 services/api/           Python Lambda backend and Bedrock wrapper
 services/gis-processor/ Docker-based GIS processor skeleton
+services/gee-processor/ Google Earth Engine Python processor container
 docs/                   Architecture, API, and local development notes
 scripts/                Helper scripts
 ```
@@ -91,6 +93,14 @@ Run unit tests:
 make test
 ```
 
+Run the frontend locally:
+
+```bash
+cp frontend/.env.example frontend/.env
+make frontend-install
+make frontend-dev
+```
+
 ## What Is Deployable
 
 - S3 raw and processed buckets
@@ -101,16 +111,20 @@ make test
 - Step Functions state machine skeleton
 - IAM placeholders for Bedrock and orchestration
 - Deterministic cost-estimation API using configurable assumptions
+- Containerized Google Earth Engine processor skeleton for GCS exports
+- Private S3 + CloudFront frontend hosting
 
 ## What Is Mocked
 
 - GIS scoring uses deterministic mock scored areas.
 - Cost estimates use mock GIS indicators and placeholder assumptions.
+- The Earth Engine processor builds the computation graph, but real exports require GEE credentials and explicit non-dry-run execution.
 - Bedrock responses fall back to deterministic text when disabled or failing.
 - EventBridge/S3 trigger is a placeholder variable-ready module section.
 - The 3D frontend is not included yet.
 
 See [docs/aws-architecture.md](docs/aws-architecture.md),
 [docs/api-contract.md](docs/api-contract.md),
-[docs/cost-estimation.md](docs/cost-estimation.md), and
+[docs/cost-estimation.md](docs/cost-estimation.md),
+[docs/frontend-cloudfront.md](docs/frontend-cloudfront.md), and
 [docs/local-dev.md](docs/local-dev.md) for details.

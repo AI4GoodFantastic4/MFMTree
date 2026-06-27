@@ -37,3 +37,7 @@ override.tf.json
 
 # Logs
 *.log
+
+# Frontend
+node_modules/
+frontend/dist/

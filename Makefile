@@ -8,8 +8,9 @@ BEDROCK_MODEL_ID ?= anthropic.claude-3-5-sonnet-20240620-v1:0
 TF_DIR := infra
 API_DIR := services/api
 LAMBDA_DIST := $(API_DIR)/dist/lambda.zip
+FRONTEND_DIR := frontend
 
-.PHONY: help check fmt test lambda-package api-smoke processor-smoke tf-init tf-fmt tf-validate tf-plan tf-apply clean
+.PHONY: help check fmt test lambda-package api-smoke processor-smoke frontend-install frontend-dev frontend-build frontend-deploy tf-init tf-fmt tf-validate tf-plan tf-apply clean
 
 help:
 	@echo "Targets:"
@@ -18,19 +19,24 @@ help:
 	@echo "  make api-smoke         Exercise Lambda handler locally with mock events"
 	@echo "  make test              Run unit tests"
 	@echo "  make processor-smoke   Run GIS processor locally without S3 upload"
+	@echo "  make frontend-install  Install frontend dependencies"
+	@echo "  make frontend-dev      Run Vite dev server"
+	@echo "  make frontend-build    Build frontend static assets"
+	@echo "  make frontend-deploy   Build and deploy frontend to S3/CloudFront"
 	@echo "  make tf-init           terraform init"
 	@echo "  make tf-plan           terraform plan with default variables"
 	@echo "  make tf-apply          terraform apply with default variables"
 
 check: fmt test lambda-package api-smoke processor-smoke tf-fmt
-	@python3 -m py_compile $(API_DIR)/*.py services/gis-processor/processor.py
+	@python3 -m py_compile $(API_DIR)/*.py services/gis-processor/processor.py services/gee-processor/src/gee_processor/*.py
 	@if command -v terraform >/dev/null 2>&1 && [ -d "$(TF_DIR)/.terraform" ]; then $(MAKE) tf-validate; else echo "terraform not initialized or not found; skipped tf-validate"; fi
 
 fmt:
-	@python3 -m compileall -q $(API_DIR) services/gis-processor
+	@python3 -m compileall -q $(API_DIR) services/gis-processor services/gee-processor/src
 
 test:
 	@python3 -m unittest discover -s tests
+	@python3 -m unittest discover -s services/gee-processor/tests
 
 lambda-package:
 	@./scripts/package_lambda.sh
@@ -40,6 +46,18 @@ api-smoke:
 
 processor-smoke:
 	@RAW_BUCKET=local-raw PROCESSED_BUCKET=local-processed TARGET_REGION=ethiopia OUTPUT_KEY=processed/scored_areas.json python3 services/gis-processor/processor.py
+
+frontend-install:
+	@npm --prefix $(FRONTEND_DIR) install
+
+frontend-dev:
+	@npm --prefix $(FRONTEND_DIR) run dev
+
+frontend-build:
+	@npm --prefix $(FRONTEND_DIR) run build
+
+frontend-deploy:
+	@./scripts/deploy_frontend.sh
 
 tf-init:
 	@terraform -chdir=$(TF_DIR) init
@@ -69,4 +87,4 @@ tf-apply: lambda-package
 		-var="bedrock_model_id=$(BEDROCK_MODEL_ID)"
 
 clean:
-	@rm -rf $(API_DIR)/build $(API_DIR)/dist
+	@rm -rf $(API_DIR)/build $(API_DIR)/dist $(FRONTEND_DIR)/dist
