@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Lambda packages
+services/api/build/
+services/api/dist/
+*.zip
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Frontend
+node_modules/
+frontend/dist/
