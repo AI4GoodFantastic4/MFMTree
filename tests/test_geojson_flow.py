@@ -157,6 +157,114 @@ class GeoJsonFlowTest(unittest.TestCase):
         self.assertEqual(response["body"]["areas"][0]["indicators"]["settlementPressure1kmPct"], 12)
         self.assertIn(area_id, scenario["body"]["scoresByArea"])
 
+    def test_low_compute_gee_fields_are_normalized_for_scoring(self) -> None:
+        gee_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "grid_id": "391600_70700",
+                        "country": "Ethiopia",
+                        "area_ha": 22500,
+                        "valid_candidate_10y_cleared_pct": 62,
+                        "valid_candidate_10y_cleared_area_ha": 13950,
+                        "ndvi_current": 0.42,
+                        "ndmi_current": 0.16,
+                        "rainfall_fit_pct": 58,
+                        "soil_water_fit_pct": 64,
+                        "terrain_fit_pct": 76,
+                        "settlement_pressure_pct": 18,
+                        "carbon_gain_pct": 70,
+                        "habitat_recovery_gain_pct": 65,
+                        "restoration_additionality_pct": 72,
+                        "restoration_system_fit_pct": 74,
+                        "restoration_system_code": "moist_system",
+                        "mrv_readiness_pct": 81,
+                        "remote_sensing_uncertainty_pct": 24,
+                        "ecological_review_required": 0,
+                        "land_history_review_required": 0,
+                        "hard_exclusion": 0,
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[39.16, 7.07], [39.25, 7.07], [39.25, 7.16], [39.16, 7.16], [39.16, 7.07]]],
+                    },
+                }
+            ],
+        }
+        path = Path("/tmp/mfmtree-low-compute-gee-test.geojson")
+        path.write_text(json.dumps(gee_geojson), encoding="utf-8")
+
+        with patch.dict(
+            os.environ,
+            {
+                "PROCESSED_BUCKET": "",
+                "PROCESSED_DATA_BUCKET": "",
+                "LOCAL_GEOJSON_PATH": str(path),
+                "ALLOW_MOCK_DATA": "false",
+            },
+            clear=False,
+        ):
+            response = invoke("GET /areas", "GET", "/areas")
+            scenario = invoke("POST /scenario", "POST", "/scenario", {"weights": {"carbon": 0.5}})
+
+        area_id = "ET-GRID-391600_70700"
+        indicators = response["body"]["areas"][0]["indicators"]
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(response["body"]["geojson"]["features"][0]["properties"]["areaId"], area_id)
+        self.assertEqual(indicators["plantableFraction"], 0.62)
+        self.assertEqual(indicators["targetProjectAreaHa"], 13950)
+        self.assertEqual(indicators["rainfallReliability"], "medium")
+        self.assertEqual(indicators["soilSuitability"], "medium")
+        self.assertEqual(indicators["monitoringFeasibility"], "high")
+        self.assertEqual(indicators["restorationSystemCode"], "moist_system")
+        self.assertIn(area_id, scenario["body"]["scoresByArea"])
+
+    def test_local_indicator_file_is_joined_by_area_id(self) -> None:
+        geojson_path = Path("/tmp/mfmtree-local-geometry-test.geojson")
+        indicators_path = Path("/tmp/mfmtree-local-indicators-test.json")
+        geojson_path.write_text(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "properties": {"areaId": "ET-GRID-LOCAL", "name": "Local Cell"},
+                            "geometry": {
+                                "type": "Polygon",
+                                "coordinates": [[[39.16, 7.07], [39.25, 7.07], [39.25, 7.16], [39.16, 7.16], [39.16, 7.07]]],
+                            },
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        indicators_path.write_text(
+            json.dumps({"areas": [{"areaId": "ET-GRID-LOCAL", "mrv_readiness_pct": 75, "valid_candidate_10y_cleared_pct": 55}]}),
+            encoding="utf-8",
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "PROCESSED_BUCKET": "",
+                "PROCESSED_DATA_BUCKET": "",
+                "LOCAL_GEOJSON_PATH": str(geojson_path),
+                "LOCAL_INDICATORS_PATH": str(indicators_path),
+                "ALLOW_MOCK_DATA": "false",
+            },
+            clear=False,
+        ):
+            response = invoke("GET /areas", "GET", "/areas")
+
+        indicators = response["body"]["areas"][0]["indicators"]
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(indicators["monitoringFeasibility"], "high")
+        self.assertEqual(indicators["plantableFraction"], 0.55)
+
 
 if __name__ == "__main__":
     unittest.main()

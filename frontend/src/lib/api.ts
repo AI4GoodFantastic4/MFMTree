@@ -246,6 +246,12 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
   const costPerHa = 450 + numberValue(indicators.distanceToRoadKm, 10) * 18 + slope * 8;
   const targetHa = totalAreaHa * plantableFraction;
   const totalCost = (targetHa * costPerHa) / 1_000_000;
+  const degradationProxy = numberValue(
+    indicators.vegetationTrend,
+    -numberValue(indicators.degradationRecoveryPct, numberValue(indicators.vegetationGainPct, 10)) / 100,
+  );
+  const populationNearby = numberValue(indicators.populationNearby, 9000);
+  const settlementPressure = numberValue(indicators.settlementPressurePct, populationNearby / 300);
 
   return {
     grid_id: areaIdToGridId(area.areaId, index),
@@ -260,7 +266,7 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     livelihood_proxy: numberValue(area.livelihoodScore, 60),
     water_soil_proxy: numberValue(area.treeSurvivalScore, survival * 100),
     current_ndvi: numberValue(indicators.meanNdvi, 0.35),
-    degradation_proxy: Math.abs(numberValue(indicators.vegetationTrend, -0.1)),
+    degradation_proxy: Math.abs(degradationProxy),
     elevation_m: numberValue(indicators.elevationM, 1800),
     annual_rain_mm: rainfall,
     estimated_cost_million_eur: totalCost,
@@ -273,10 +279,16 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_tonnes_per_ha_2010: expectedTco2e,
     slope_deg: slope,
-    population_local_mean_5km: numberValue(indicators.populationNearby, 9000) / 1000,
-    settlement_pressure_1km_pct: numberValue(indicators.populationNearby, 9000) / 300,
+    population_local_mean_5km: populationNearby / 1000,
+    settlement_pressure_1km_pct: settlementPressure,
     near_protected_area: String(indicators.protectedAreaConcern || "low").toLowerCase() === "low" ? 0 : 1,
     plant_fit: survival * 100,
+    restoration_system_code: stringValue(indicators.restorationSystemCode),
+    valid_candidate_10y_cleared_pct: numberValue(indicators.validCandidate10yClearedPct, plantableFraction * 100),
+    mrv_readiness_pct: numberValue(indicators.mrvReadinessPct, undefined),
+    remote_sensing_uncertainty_pct: numberValue(indicators.remoteSensingUncertaintyPct, undefined),
+    hard_exclusion: numberValue(indicators.hardExclusion, 0),
+    ecological_review_required: numberValue(indicators.ecologicalReviewRequired, 0),
     carbon_credit_readiness: area.carbonCreditReadiness,
     cost_efficiency_score: area.costEfficiencyScore,
     risk_score: area.riskScore,
@@ -349,4 +361,8 @@ function roiClass(score: number): "Green" | "Yellow" | "Red" {
   if (score >= 80) return "Green";
   if (score >= 65) return "Yellow";
   return "Red";
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }

@@ -357,18 +357,23 @@ def _carbon_readiness(area: dict[str, Any]) -> dict[str, Any]:
 
     recent_deforestation_risk = str(indicators.get("recentDeforestationRisk", "")).lower()
     protected_area_concern = str(indicators.get("protectedAreaConcern", "")).lower()
+    monitoring_feasibility = str(indicators.get("monitoringFeasibility", "")).lower()
 
-    if recent_deforestation_risk == "high":
+    if indicators.get("forestLossRecent") is True or recent_deforestation_risk == "high":
         blockers.append("recent deforestation risk requires carbon integrity review")
     else:
-        strengths.append("no high recent-deforestation signal in mock indicators")
+        strengths.append("no high recent-deforestation signal in available indicators")
 
     if estimate["estimatedPlantableHa"] < 500:
         blockers.append("plantable area may be small for carbon project economics")
     else:
         strengths.append("plantable area size appears material for pre-screening")
 
-    if _number(indicators.get("distanceToRoadKm"), 99) > 30:
+    if monitoring_feasibility == "low":
+        blockers.append("MRV readiness is low in the remote-sensing screen")
+    elif monitoring_feasibility in {"medium", "high"}:
+        strengths.append(f"{monitoring_feasibility} MRV readiness in the remote-sensing screen")
+    elif _number(indicators.get("distanceToRoadKm"), 99) > 30:
         blockers.append("remote access may make monitoring difficult")
     else:
         strengths.append("monitoring access appears feasible for pre-screening")
@@ -376,7 +381,7 @@ def _carbon_readiness(area: dict[str, Any]) -> dict[str, Any]:
     if "land tenure unknown" in area.get("uncertainties", []):
         blockers.append("land tenure unknown")
 
-    if protected_area_concern in {"partial", "unclear", "high"}:
+    if protected_area_concern in {"partial", "unclear", "high"} or _number(indicators.get("ecologicalReviewRequired"), 0) > 0:
         blockers.append("protected-area or safeguard status requires review")
 
     if estimate["estimatedNetTCO2e"] >= 50000:

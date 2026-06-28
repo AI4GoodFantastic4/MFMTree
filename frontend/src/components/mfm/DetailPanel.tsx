@@ -278,6 +278,17 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
             <Row k="Environmental ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
             <Row k="Near protected area" v={p.near_protected_area > 0.5 ? "Yes" : "No"} />
             <Row k="Plant suitability" v={`${p.plant_fit.toFixed(0)}%`} />
+            {p.restoration_system_code && <Row k="Restoration system" v={p.restoration_system_code} />}
+            {p.valid_candidate_10y_cleared_pct !== undefined && (
+              <Row k="GEE candidate area" v={`${p.valid_candidate_10y_cleared_pct.toFixed(1)}%`} />
+            )}
+            {p.mrv_readiness_pct !== undefined && (
+              <Row k="MRV readiness" v={`${p.mrv_readiness_pct.toFixed(0)}%`} />
+            )}
+            {p.remote_sensing_uncertainty_pct !== undefined && (
+              <Row k="RS uncertainty" v={`${p.remote_sensing_uncertainty_pct.toFixed(0)}%`} />
+            )}
+            {p.hard_exclusion !== undefined && p.hard_exclusion > 0 && <Row k="Hard exclusion" v="Review" />}
             <Row k="Carbon readiness" v={p.carbon_credit_readiness || "Requires review"} />
           </dl>
         </section>

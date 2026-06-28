@@ -31,6 +31,12 @@ export interface CellProps {
   settlement_pressure_1km_pct: number;
   near_protected_area: number;
   plant_fit: number;
+  restoration_system_code?: string;
+  valid_candidate_10y_cleared_pct?: number;
+  mrv_readiness_pct?: number;
+  remote_sensing_uncertainty_pct?: number;
+  hard_exclusion?: number;
+  ecological_review_required?: number;
   carbon_credit_readiness?: "low" | "medium" | "high";
   cost_efficiency_score?: number;
   risk_score?: number;
