@@ -67,6 +67,8 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
   const selectedRef = useRef<number | null>(null);
   const compareBRef = useRef<number | null>(null);
   const onSelectRef = useRef(onSelect);
+  const flyToIdRef = useRef(flyToId);
+  const flyToPadRightRef = useRef(flyToPadRight);
   const [mode, setMode] = useState<"2D" | "3D">("3D");
   const [tokenBad, setTokenBad] = useState(false);
 
@@ -76,6 +78,26 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
   selectedRef.current = selectedId;
   compareBRef.current = compareB;
   onSelectRef.current = onSelect;
+  flyToIdRef.current = flyToId;
+  flyToPadRightRef.current = flyToPadRight;
+
+  // Shared flyTo logic — called both from the useEffect and from map.on("load")
+  // so it works whether the map was already loaded or just mounted.
+  function flyToCell(m: mapboxgl.Map, id: number) {
+    const f = cellsRef.current.find((c) => c.properties.grid_id === id);
+    if (!f) return;
+    const ring = f.geometry.coordinates[0];
+    let x = 0, y = 0;
+    for (const [lng, lat] of ring) { x += lng; y += lat; }
+    m.flyTo({
+      center: [x / ring.length, y / ring.length],
+      zoom: 10,
+      pitch: 45,
+      bearing: -10,
+      duration: 1200,
+      padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
+    });
+  }
 
   // shared layer setup, reused on init + theme switch
   function setupLayers(m: mapboxgl.Map) {
@@ -220,6 +242,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       loadedRef.current = true;
       setupLayers(map);
       requestAnimationFrame(() => map.resize());
+      if (flyToIdRef.current != null) flyToCell(map, flyToIdRef.current);
     });
 
     mapRef.current = map;
@@ -291,23 +314,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !loadedRef.current || flyToId == null) return;
-    const f = cells.find((c) => c.properties.grid_id === flyToId);
-    if (!f) return;
-    const ring = f.geometry.coordinates[0];
-    let x = 0,
-      y = 0;
-    for (const [lng, lat] of ring) {
-      x += lng;
-      y += lat;
-    }
-    m.flyTo({
-      center: [x / ring.length, y / ring.length],
-      zoom: 10,
-      pitch: 45,
-      bearing: -10,
-      duration: 1200,
-      padding: { top: 40, bottom: 40, left: 40, right: flyToPadRight },
-    });
+    flyToCell(m, flyToId);
   }, [cells, flyToId, flyToPadRight]);
 
   const resetView = () => {
