@@ -207,6 +207,7 @@ function App() {
                 flyToId={flyToId}
                 theme={theme}
                 onToggleTheme={toggleTheme}
+                onResetView={() => setSelectedId(null)}
                 panelOpen={!!selectedFeature && !compareSelectFor}
                 banner={usingDemoData ? "Data source: demo fallback" : `Data source: ${dataSource}`}
               />

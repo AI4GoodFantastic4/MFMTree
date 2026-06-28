@@ -12,6 +12,7 @@ interface Props {
   flyToId: number | null;
   theme: Theme;
   onToggleTheme?: () => void;
+  onResetView?: () => void;
   compareB?: number | null;
   banner?: string;
   flyToPadRight?: number;
@@ -56,7 +57,7 @@ function buildGeoJSON(cells: CellFeature[], weights: Weights) {
   };
 }
 
-export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, onToggleTheme, compareB = null, banner, flyToPadRight = 400, panelOpen = false }: Props) {
+export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, onToggleTheme, onResetView, compareB = null, banner, flyToPadRight = 400, panelOpen = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
@@ -359,7 +360,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-w-[2.5rem] items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                 mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
               }`}
             >
@@ -375,7 +376,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
                 <button
                   key={label}
                   onClick={() => { if (!isActive) onToggleTheme(); }}
-                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                     isActive ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
                   }`}
                 >
@@ -390,7 +391,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       {/* BOTTOM LEFT: Reset View button + Restoration Score legend */}
       <div className="absolute bottom-2 left-2 z-10 flex flex-col gap-2">
         <button
-          onClick={resetView}
+          onClick={() => { resetView(); onResetView?.(); }}
           className="rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--mfm-text)] backdrop-blur transition-colors hover:bg-[var(--mfm-surface-2)]"
         >
           Reset View

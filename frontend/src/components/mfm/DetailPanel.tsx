@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, Leaf, TrendingDown, CloudRain, Mountain, Sprout } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -152,15 +152,15 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
         </section>
 
         <section className="grid grid-cols-2 gap-2 border-b border-[var(--mfm-border)] p-4">
-          <Metric icon="🌿" label="NDVI" value={p.current_ndvi.toFixed(2)} sub={ndviLabel(p.current_ndvi)} />
+          <Metric icon={Leaf} label="NDVI" value={p.current_ndvi.toFixed(2)} sub={ndviLabel(p.current_ndvi)} />
           <Metric
-            icon="📉"
+            icon={TrendingDown}
             label="Degradation"
             value={`${Math.round(p.degradation_proxy * 100)}%`}
             sub={degradationLabel(p.degradation_proxy)}
           />
-          <Metric icon="🌧️" label="Rainfall" value={`${Math.round(p.annual_rain_mm)} mm`} sub="per year" />
-          <Metric icon="⛰️" label="Elevation" value={`${Math.round(p.elevation_m)} m`} sub={`Slope ${p.slope_deg.toFixed(1)}°`} />
+          <Metric icon={CloudRain} label="Rainfall" value={`${Math.round(p.annual_rain_mm)} mm`} sub="per year" />
+          <Metric icon={Mountain} label="Elevation" value={`${Math.round(p.elevation_m)} m`} sub={`Slope ${p.slope_deg.toFixed(1)}°`} />
         </section>
 
         <section className="border-b border-[var(--mfm-border)] p-4">
@@ -200,7 +200,7 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
           <ul className="space-y-1 text-xs text-[var(--mfm-text)]">
             {plants.map((s) => (
               <li key={s} className="flex gap-2">
-                <span>🌱</span>
+                <Sprout className="h-3 w-3 shrink-0 mt-0.5 text-[var(--mfm-text-2)]" />
                 <span>{s}</span>
               </li>
             ))}
@@ -232,11 +232,11 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
   );
 }
 
-function Metric({ icon, label, value, sub }: { icon: string; label: string; value: string; sub: string }) {
+function Metric({ icon: Icon, label, value, sub }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; sub: string }) {
   return (
     <div className="rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface-2)] p-2.5">
       <div className="flex items-center gap-1.5 text-[10px] text-[var(--mfm-text-2)]">
-        <span>{icon}</span>
+        <Icon className="h-3 w-3" />
         <span className="uppercase tracking-wider">{label}</span>
       </div>
       <div className="mt-0.5 text-base font-semibold text-[var(--mfm-text)]">{value}</div>

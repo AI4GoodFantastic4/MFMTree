@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Sprout } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -382,7 +383,10 @@ function CellDetail({ cell, weights }: { cell: { feature: CellFeature; score: nu
         </h5>
         <ul className="space-y-0.5 text-xs text-[var(--mfm-text)]">
           {plants.map((s) => (
-            <li key={s}>🌱 {s}</li>
+            <li key={s} className="flex items-center gap-1.5">
+              <Sprout className="h-3 w-3 shrink-0" />
+              {s}
+            </li>
           ))}
         </ul>
       </div>
