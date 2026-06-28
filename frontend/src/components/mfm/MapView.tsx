@@ -23,6 +23,7 @@ interface Props {
   compareB?: number | null;
   banner?: string;
   onCancel?: () => void;
+  onResetView?: () => void;
   flyToPadRight?: number;
   isPanelOpen?: boolean;
   selectionBannerVisible?: boolean;
@@ -79,6 +80,7 @@ export function MapView({
   compareB = null,
   banner,
   onCancel,
+  onResetView,
   flyToPadRight = 400,
   isPanelOpen = false,
   selectionBannerVisible = false,
@@ -574,7 +576,10 @@ export function MapView({
       </div>
       <div className="absolute bottom-12 left-4 z-30 flex flex-col gap-1.5">
         <button
-          onClick={() => resetView()}
+          onClick={() => {
+            resetView();
+            onResetView?.();
+          }}
           className="flex items-center justify-center gap-1 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-[#374151] shadow transition-colors hover:bg-white"
         >
           <Home size={12} strokeWidth={1.5} />

@@ -211,6 +211,10 @@ function App() {
                       }
                     : undefined
                 }
+                onResetView={() => {
+                  setSelectedId(null);
+                  setFlyToId(null);
+                }}
               />
 
               {selectedFeature && !compareSelectFor && (
