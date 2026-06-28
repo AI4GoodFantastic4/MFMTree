@@ -224,9 +224,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       container: containerRef.current,
       style: STYLE_FOR(theme),
       bounds: INITIAL_BOUNDS,
-      fitBoundsOptions: { padding: 60 },
-      pitch: 50,
-      bearing: -10,
+      fitBoundsOptions: { padding: 60, pitch: 50, bearing: -10 },
     });
 
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
