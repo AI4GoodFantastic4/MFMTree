@@ -348,7 +348,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
 
       {/* TOP RIGHT: 2D/3D toggle → Light/Satellite toggle → Mapbox NavigationControl (stacked vertically) */}
       <div
-        className="absolute z-10 flex flex-col gap-2"
+        className="absolute z-10 flex flex-col items-end gap-2"
         style={{
           top: 10,
           right: 10 + (panelOpen ? PANEL_WIDTH : 0),
