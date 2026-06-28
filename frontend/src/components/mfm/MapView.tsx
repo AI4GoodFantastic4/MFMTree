@@ -18,6 +18,7 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   flyToId: number | null;
+  flyToRequest: number;
   theme: Theme;
   compareB?: number | null;
   banner?: string;
@@ -73,6 +74,7 @@ export function MapView({
   selectedId,
   onSelect,
   flyToId,
+  flyToRequest,
   theme,
   compareB = null,
   banner,
@@ -446,7 +448,7 @@ export function MapView({
   useEffect(() => {
     if (flyToId == null) return;
     flyToCell(flyToId);
-  }, [flyToId, flyToPadRight, flyToCell]);
+  }, [flyToId, flyToPadRight, flyToRequest, flyToCell]);
 
   return (
     <div

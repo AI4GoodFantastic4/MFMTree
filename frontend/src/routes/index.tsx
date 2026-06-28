@@ -45,6 +45,7 @@ function App() {
   const [tab, setTab] = useState<TabId>("map");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [flyToId, setFlyToId] = useState<number | null>(null);
+  const [flyToRequest, setFlyToRequest] = useState(0);
   const [booting, setBooting] = useState(true);
   const [compareA, setCompareA] = useState<number | null>(null);
   const [compareB, setCompareB] = useState<number | null>(null);
@@ -63,6 +64,7 @@ function App() {
   const select = (id: number) => {
     setSelectedId(id);
     setFlyToId(id);
+    setFlyToRequest((request) => request + 1);
     setTab("map");
   };
 
@@ -192,6 +194,7 @@ function App() {
                 selectedId={selectedId}
                 onSelect={handleMapSelect}
                 flyToId={flyToId}
+                flyToRequest={flyToRequest}
                 theme={theme}
                 isPanelOpen={!!selectedFeature && !compareSelectFor}
                 selectionBannerVisible={!!compareSelectFor}
