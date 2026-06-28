@@ -3,13 +3,13 @@ ENVIRONMENT ?= dev
 AWS_REGION ?= eu-central-1
 FRONTEND_ORIGIN ?= http://localhost:5173
 BEDROCK_ENABLED ?= false
-BEDROCK_MODEL_ID ?= anthropic.claude-3-5-sonnet-20240620-v1:0
+BEDROCK_MODEL_ID ?= us.amazon.nova-lite-v1:0
 ALLOW_MOCK_DATA ?= true
 
 TF_DIR := infra
 API_DIR := services/api
 LAMBDA_DIST := $(API_DIR)/dist/lambda.zip
-FRONTEND_DIR := ai4goodhackathonmfmtree
+FRONTEND_DIR := frontend
 
 .PHONY: help check fmt test lambda-package api-smoke processor-smoke frontend-install frontend-dev frontend-build frontend-deploy tf-init tf-fmt tf-validate tf-plan tf-apply clean
 

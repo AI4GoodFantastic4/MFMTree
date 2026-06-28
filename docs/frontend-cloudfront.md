@@ -2,7 +2,7 @@
 
 ## What It Is
 
-The `ai4goodhackathonmfmtree/` app is the real Vite + React + TypeScript
+The `frontend/` app is the real Vite + React + TypeScript
 frontend for the reforestation prioritisation platform. It connects to the API
 Gateway backend when `VITE_API_BASE_URL` is configured and falls back to local
 demo data when API calls fail.
@@ -13,16 +13,16 @@ The UI shows:
 - clickable candidate areas
 - score dashboard
 - cost estimate and carbon-credit readiness
-- field brief and AI advisor text
+- AI advisor comparison and read-aloud text
 - two-area comparison workflow
 - dynamic score recoloring without refetching geometry
 
 ## API Connection
 
-Create `ai4goodhackathonmfmtree/.env`:
+Create `frontend/.env`:
 
 ```bash
-cp ai4goodhackathonmfmtree/.env.example ai4goodhackathonmfmtree/.env
+cp frontend/.env.example frontend/.env
 ```
 
 Set:
@@ -58,7 +58,7 @@ make frontend-build
 The static output is written to:
 
 ```text
-ai4goodhackathonmfmtree/.output/public/
+frontend/.output/public/
 ```
 
 The app uses TanStack Start/Nitro. For S3 hosting, `scripts/prepare_frontend_static.sh`
@@ -98,7 +98,7 @@ make frontend-deploy
 The script:
 
 1. installs frontend dependencies if needed
-2. builds `ai4goodhackathonmfmtree/.output`
+2. builds `frontend/.output`
 3. renders `.output/public/index.html` for static S3 hosting
 4. reads S3 bucket and CloudFront distribution id from Terraform outputs
 5. syncs `.output/public` to S3

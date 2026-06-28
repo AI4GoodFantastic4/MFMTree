@@ -74,7 +74,9 @@ assumptions, or risk tolerance change.
 - The Earth Engine processor still exports `restoration_score` artifacts from
   the original Code Editor logic. Treat those as QA/prototype layers, not final
   dynamic investment decisions.
-- Real geometry and indicator exports still need to be wired into the expected
-  S3 layout.
+- Real Earth Engine exports should be transformed or uploaded into
+  `geometry/areas.geojson`, `indicators/latest.json`, and
+  `metadata/data_sources.json`. The backend now normalizes the exported
+  data-only script fields documented in `real-geojson-flow.md`.
 - `scores/default_scores.json` is documented for future versioned score runs;
   the MVP calculates scores at request time.

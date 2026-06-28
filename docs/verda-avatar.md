@@ -19,7 +19,7 @@ Because the production frontend is a React/TanStack app and the HTML file is at
 repo root, the relevant SVG and state CSS were extracted into:
 
 ```text
-ai4goodhackathonmfmtree/src/components/mfm/AIComparisonAdvisor.tsx
+frontend/src/components/mfm/AIComparisonAdvisor.tsx
 ```
 
 This avoids iframe sizing/loading issues and keeps the avatar available in the
@@ -46,7 +46,7 @@ local fallback comparison.
 The main speech cloud uses:
 
 ```text
-ai4goodhackathonmfmtree/src/components/mfm/TypewriterText.tsx
+frontend/src/components/mfm/TypewriterText.tsx
 ```
 
 `TypewriterText` reveals the narrative character by character, resets when the

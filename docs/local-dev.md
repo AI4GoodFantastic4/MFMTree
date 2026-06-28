@@ -111,13 +111,13 @@ Outputs include:
 The real hackathon frontend lives in:
 
 ```text
-ai4goodhackathonmfmtree/
+frontend/
 ```
 
 Create its environment file:
 
 ```bash
-cp ai4goodhackathonmfmtree/.env.example ai4goodhackathonmfmtree/.env
+cp frontend/.env.example frontend/.env
 ```
 
 Set `VITE_API_BASE_URL` to the deployed API Gateway URL. For local demo-only
@@ -134,7 +134,7 @@ Build static assets:
 
 ```bash
 make frontend-build
-./scripts/prepare_frontend_static.sh ai4goodhackathonmfmtree
+./scripts/prepare_frontend_static.sh frontend
 ```
 
 Deploy to S3/CloudFront after Terraform has created frontend hosting:

@@ -26,9 +26,9 @@ else
   UPLOAD_PATH="$(mktemp)"
   PYTHONPATH="$ROOT_DIR/services/api" python3 - <<'PY' > "$UPLOAD_PATH"
 import json
-from data_sources import DEFAULT_DATA_SOURCES
+from data_sources import DEFAULT_DATA_SOURCES, SCHEMA_VERSION, _decorate_sources
 
-print(json.dumps({"schemaVersion": "0.1.0", "dataSources": DEFAULT_DATA_SOURCES}, ensure_ascii=True, indent=2))
+print(json.dumps({"schemaVersion": SCHEMA_VERSION, "dataSources": _decorate_sources(DEFAULT_DATA_SOURCES)}, ensure_ascii=True, indent=2))
 PY
 fi
 

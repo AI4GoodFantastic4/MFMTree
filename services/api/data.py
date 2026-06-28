@@ -418,19 +418,38 @@ def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
         "protected_area_share": "protectedAreaShare",
         "restorable_land_share": "restorableLandShare",
         "restorable_land_pct": "restorableLandPct",
+        "valid_restoration_land": "validRestorationLandShare",
+        "valid_restoration_land_pct": "validRestorationLandPct",
+        "no_plant_empty_land_share": "noPlantEmptyLandShare",
+        "no_plant_empty_land_pct": "noPlantEmptyLandPct",
+        "built_up_share": "builtUpShare",
+        "built_up_pct": "builtUpPct",
+        "water_wetland_mangrove_share": "waterWetlandMangroveShare",
+        "water_wetland_mangrove_pct": "waterWetlandMangrovePct",
         "target_project_area_ha": "targetProjectAreaHa",
         "plant_fit": "plantFit",
         "annual_rain_mm": "annualRainMm",
+        "rainfall_fit": "rainfallFit",
+        "water_soil_proxy": "waterSoilProxy",
+        "soil_water_fit": "soilWaterFit",
+        "terrain_access_fit": "terrainAccessFit",
         "degradation_proxy": "degradationProxy",
         "ndvi_decline_proxy": "ndviDeclineProxy",
         "soil_pawc_0_30cm_cm3cm3": "soilPawc030Cm",
+        "settlement_pressure_1km_pct": "settlementPressure1kmPct",
+        "settlement_pressure_1km_pct_export": "settlementPressure1kmPct",
+        "environmental_roi": "environmentalRoi",
     }
     for source, target in mappings.items():
         if source in normalized and target not in normalized:
             normalized[target] = normalized[source]
 
     if normalized.get("plantableFraction") is None:
-        if normalized.get("restorable_land_pct") is not None:
+        if normalized.get("valid_restoration_land") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["valid_restoration_land"], already_fraction=True)
+        elif normalized.get("valid_restoration_land_pct") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["valid_restoration_land_pct"])
+        elif normalized.get("restorable_land_pct") is not None:
             normalized["plantableFraction"] = _fraction(normalized["restorable_land_pct"])
         elif normalized.get("restorable_land_share") is not None:
             normalized["plantableFraction"] = _fraction(normalized["restorable_land_share"], already_fraction=True)
@@ -449,8 +468,12 @@ def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
             normalized["expectedTCO2ePerHa"] = round(max(carbon_t_ha * 3.667, 0), 2)
 
     if normalized.get("rainfallReliability") is None:
+        rainfall_fit = _number_or_none(normalized.get("rainfall_fit"))
         rainfall = _number_or_none(normalized.get("annual_rain_mm"))
-        if rainfall is not None:
+        if rainfall_fit is not None:
+            rainfall_fraction = _fraction(rainfall_fit)
+            normalized["rainfallReliability"] = "high" if rainfall_fraction >= 0.7 else "medium" if rainfall_fraction >= 0.4 else "low"
+        elif rainfall is not None:
             normalized["rainfallReliability"] = "high" if rainfall >= 1000 else "medium" if rainfall >= 650 else "low"
 
     if normalized.get("soilSuitability") is None:
@@ -501,16 +524,29 @@ def _indicators_from_properties(properties: dict[str, Any]) -> dict[str, Any]:
         "environmental_roi",
         "restorable_land_pct",
         "restorable_land_share",
+        "valid_restoration_land",
+        "valid_restoration_mask",
+        "built_up_share",
+        "water_wetland_mangrove_share",
+        "no_plant_empty_land_share",
         "target_project_area_ha",
         "area_ha",
         "carbon_tonnes_per_ha_2010",
         "slope_deg",
         "population_local_mean_5km",
         "settlement_pressure_1km_pct",
+        "settlement_pressure_1km_pct_export",
         "near_protected_area",
         "protected_area_share",
         "plant_fit",
+        "rainfall_fit",
+        "water_soil_proxy",
+        "soil_water_fit",
+        "terrain_access_fit",
         "soil_pawc_0_30cm_cm3cm3",
+        "eligibility_status",
+        "candidate_ok",
+        "roi_class",
     }
     return {key: properties[key] for key in indicator_keys if key in properties}
 

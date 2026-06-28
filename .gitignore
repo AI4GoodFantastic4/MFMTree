@@ -41,3 +41,7 @@ override.tf.json
 # Frontend
 node_modules/
 frontend/dist/
+frontend/.output/
+frontend/.wrangler/
+frontend/.vinxi/
+frontend/.tanstack/
