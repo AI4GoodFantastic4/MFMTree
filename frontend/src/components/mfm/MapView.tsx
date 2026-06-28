@@ -33,11 +33,9 @@ const INITIAL_BOUNDS: [mapboxgl.LngLatLike, mapboxgl.LngLatLike] = [
   [43.3, 14.4],
 ];
 
-// How far down to push the Mapbox nav control so it clears the two pill toggles above it.
-// Each pill: p-0.5 (2px) + py-1 text-xs button (~24px) + p-0.5 (2px) = 28px.
-// Two pills + gap-2 (8px): 28 + 8 + 28 = 64px. Starting at top:10px → bottom edge at 74px.
-// Add 8px gap before nav: 82px total paddingTop on .mapboxgl-ctrl-top-right.
-const NAV_CTRL_PUSH_DOWN = 82;
+// Toggle column sits left of the Mapbox NavigationControl:
+// 10px (Mapbox ctrl-top-right padding) + 32px (nav button width) + 8px (gap) = 50px right offset.
+const NAV_CTRL_RIGHT_OFFSET = 50;
 const PANEL_WIDTH = 380;
 
 function buildGeoJSON(cells: CellFeature[], weights: Weights) {
@@ -211,12 +209,8 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
 
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
 
-    // Push the Mapbox nav control down so it sits below the two React pill toggles above it.
     const ctrlTopRight = containerRef.current.querySelector(".mapboxgl-ctrl-top-right") as HTMLElement | null;
-    if (ctrlTopRight) {
-      ctrlTopRight.style.paddingTop = `${NAV_CTRL_PUSH_DOWN}px`;
-      ctrlTopRight.style.transition = "right 300ms ease";
-    }
+    if (ctrlTopRight) ctrlTopRight.style.transition = "right 300ms ease";
 
     map.on("error", (e) => {
       if (e?.error?.message?.toLowerCase().includes("unauthorized")) setTokenBad(true);
@@ -346,12 +340,12 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
         </div>
       )}
 
-      {/* TOP RIGHT: 2D/3D toggle → Light/Satellite toggle → Mapbox NavigationControl (stacked vertically) */}
+      {/* TOP RIGHT: toggle column sits left of Mapbox NavigationControl, both top-aligned */}
       <div
         className="absolute z-10 flex flex-col items-end gap-2"
         style={{
           top: 10,
-          right: 10 + (panelOpen ? PANEL_WIDTH : 0),
+          right: NAV_CTRL_RIGHT_OFFSET + (panelOpen ? PANEL_WIDTH : 0),
           transition: "right 300ms ease",
         }}
       >
