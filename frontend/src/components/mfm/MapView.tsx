@@ -453,7 +453,6 @@ export function MapView({
     if (!m || !loadedRef.current) return;
     const src = m.getSource("cells") as mapboxgl.GeoJSONSource | undefined;
     if (src) src.setData(buildGeoJSON(cells, weights) as never);
-    if (pendingFocusIdRef.current != null) focusCell(pendingFocusIdRef.current);
   }, [cells, weights]);
 
   // toggle 2D/3D
