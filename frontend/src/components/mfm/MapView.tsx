@@ -332,13 +332,6 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
           </div>
         </div>
       )}
-      {banner && (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2">
-          <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/95 px-3 py-1.5 text-xs font-medium text-[var(--mfm-text)] shadow backdrop-blur">
-            {banner}
-          </div>
-        </div>
-      )}
 
       {/* TOP RIGHT: toggle column sits left of Mapbox NavigationControl, both top-aligned */}
       <div
@@ -403,8 +396,13 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
         </div>
       </div>
 
-      {/* BOTTOM CENTER: status bar */}
-      <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-10 flex justify-center">
+      {/* BOTTOM CENTER: data source banner (optional) + status bar, stacked */}
+      <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-10 flex flex-col items-center gap-2">
+        {banner && (
+          <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/95 px-3 py-1.5 text-xs font-medium text-[var(--mfm-text)] shadow backdrop-blur">
+            {banner}
+          </div>
+        )}
         <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/80 px-3 py-1 text-[11px] text-[var(--mfm-text-2)] backdrop-blur">
           {cells.length} areas loaded · Weights C{Math.round(weights.carbon * 100)}% B
           {Math.round(weights.biodiversity * 100)}% L{Math.round(weights.livelihood * 100)}% W
