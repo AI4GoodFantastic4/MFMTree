@@ -63,9 +63,12 @@ function App() {
 
   const select = (id: number) => {
     setSelectedId(id);
-    setFlyToId(id);
-    setFlyToRequest((request) => request + 1);
     setTab("map");
+    setFlyToId(null);
+    window.setTimeout(() => {
+      setFlyToId(id);
+      setFlyToRequest((request) => request + 1);
+    }, 50);
   };
 
   const handleMapSelect = (id: number) => {

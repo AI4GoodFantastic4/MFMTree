@@ -157,6 +157,16 @@ export function MapView({
       padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
       ...CAMERA_3D,
     });
+    window.setTimeout(() => {
+      if (pendingFocusIdRef.current !== id || mapRef.current !== m) return;
+      m.flyTo({
+        center,
+        zoom: 10,
+        duration: 900,
+        padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
+        ...CAMERA_3D,
+      });
+    }, 150);
   }, []);
 
   const applyCameraMode = useCallback((m: mapboxgl.Map, nextMode: "2D" | "3D", duration = 0) => {
