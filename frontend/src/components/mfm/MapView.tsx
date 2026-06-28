@@ -360,7 +360,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`inline-flex min-w-[2.5rem] items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                 mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
               }`}
             >
