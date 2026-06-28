@@ -1,5 +1,6 @@
 import { Download, Moon, Sun } from "lucide-react";
 import type { Theme } from "@/hooks/useTheme";
+import { LanguageSelector } from "./LanguageSelector";
 
 export type TabId = "map" | "ranking" | "compare";
 
@@ -53,6 +54,7 @@ export function TopBar({ tab, onTab, onExport, theme, onToggleTheme }: Props) {
         ))}
       </nav>
       <div className="flex items-center gap-2">
+        <LanguageSelector />
         <button
           onClick={onToggleTheme}
           aria-label="Toggle light/dark mode"
