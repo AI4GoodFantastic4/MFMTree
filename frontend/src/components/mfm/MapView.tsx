@@ -203,7 +203,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       style: STYLE_FOR(theme),
       bounds: INITIAL_BOUNDS,
       fitBoundsOptions: { padding: 60 },
-      pitch: 40,
+      pitch: 50,
       bearing: -10,
     });
 
@@ -311,7 +311,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
   }, [cells, flyToId, flyToPadRight]);
 
   const resetView = () => {
-    mapRef.current?.fitBounds(INITIAL_BOUNDS, { padding: 60, pitch: 40, bearing: -10, duration: 1000 });
+    mapRef.current?.fitBounds(INITIAL_BOUNDS, { padding: 60, pitch: 50, bearing: -10, duration: 1000 });
   };
 
   return (
