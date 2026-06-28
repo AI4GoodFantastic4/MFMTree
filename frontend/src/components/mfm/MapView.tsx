@@ -27,6 +27,18 @@ const STYLE_FOR = (theme: Theme) =>
     ? "mapbox://styles/mapbox/light-v11"
     : "mapbox://styles/mapbox/satellite-streets-v12";
 
+const INITIAL_BOUNDS: [mapboxgl.LngLatLike, mapboxgl.LngLatLike] = [
+  [35.03, 3.41],
+  [43.3, 14.4],
+];
+
+// How far down to push the Mapbox nav control so it clears the two pill toggles above it.
+// Each pill: p-0.5 (2px) + py-1 text-xs button (~24px) + p-0.5 (2px) = 28px.
+// Two pills + gap-2 (8px): 28 + 8 + 28 = 64px. Starting at top:10px → bottom edge at 74px.
+// Add 8px gap before nav: 82px total paddingTop on .mapboxgl-ctrl-top-right.
+const NAV_CTRL_PUSH_DOWN = 82;
+const PANEL_WIDTH = 380;
+
 function buildGeoJSON(cells: CellFeature[], weights: Weights) {
   return {
     type: "FeatureCollection" as const,
@@ -43,12 +55,6 @@ function buildGeoJSON(cells: CellFeature[], weights: Weights) {
     })),
   };
 }
-
-// Mapbox bottom-right container uses 10px padding; NavigationControl buttons are 29px wide.
-const NAV_RIGHT = 10;
-const NAV_WIDTH = 29;
-const CONTROLS_GAP = 8;
-const PANEL_WIDTH = 380;
 
 export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, onToggleTheme, compareB = null, banner, flyToPadRight = 400, panelOpen = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -196,16 +202,20 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: STYLE_FOR(theme),
-      bounds: [
-        [35.03, 3.41],
-        [43.3, 14.4],
-      ],
+      bounds: INITIAL_BOUNDS,
       fitBoundsOptions: { padding: 60 },
       pitch: 40,
       bearing: -10,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+
+    // Push the Mapbox nav control down so it sits below the two React pill toggles above it.
+    const ctrlTopRight = containerRef.current.querySelector(".mapboxgl-ctrl-top-right") as HTMLElement | null;
+    if (ctrlTopRight) {
+      ctrlTopRight.style.paddingTop = `${NAV_CTRL_PUSH_DOWN}px`;
+      ctrlTopRight.style.transition = "right 300ms ease";
+    }
 
     map.on("error", (e) => {
       if (e?.error?.message?.toLowerCase().includes("unauthorized")) setTokenBad(true);
@@ -230,6 +240,13 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Slide the Mapbox nav control left/right together with the React toggles when the detail panel opens.
+  useEffect(() => {
+    const el = containerRef.current?.querySelector(".mapboxgl-ctrl-top-right") as HTMLElement | null;
+    if (!el) return;
+    el.style.right = panelOpen ? `${PANEL_WIDTH}px` : "0";
+  }, [panelOpen]);
 
   // theme → setStyle and re-add layers
   useEffect(() => {
@@ -298,6 +315,10 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
     });
   }, [cells, flyToId, flyToPadRight]);
 
+  const resetView = () => {
+    mapRef.current?.fitBounds(INITIAL_BOUNDS, { padding: 60, pitch: 40, bearing: -10, duration: 1000 });
+  };
+
   return (
     <div className="relative h-full w-full overflow-hidden" style={{ height: "100%", minHeight: 0, position: "relative", overflow: "hidden" }}>
       <div
@@ -323,15 +344,29 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
           </div>
         </div>
       )}
-      {/* Custom map controls: sit immediately left of the Mapbox NavigationControl */}
+
+      {/* TOP RIGHT: 2D/3D toggle → Light/Satellite toggle → Mapbox NavigationControl (stacked vertically) */}
       <div
-        className="absolute z-10 flex items-end gap-2"
+        className="absolute z-10 flex flex-col gap-2"
         style={{
-          bottom: NAV_RIGHT,
-          right: NAV_RIGHT + NAV_WIDTH + CONTROLS_GAP + (panelOpen ? PANEL_WIDTH : 0),
+          top: 10,
+          right: 10 + (panelOpen ? PANEL_WIDTH : 0),
           transition: "right 300ms ease",
         }}
       >
+        <div className="flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
+          {(["2D", "3D"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
         {onToggleTheme && (
           <div className="flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
             {(["Light", "Satellite"] as const).map((label) => {
@@ -350,36 +385,35 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
             })}
           </div>
         )}
-        <div className="flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
-          {(["2D", "3D"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
-              }`}
-            >
-              {m}
-            </button>
-          ))}
+      </div>
+
+      {/* BOTTOM LEFT: Reset View button + Restoration Score legend */}
+      <div className="absolute bottom-2 left-2 z-10 flex flex-col gap-2">
+        <button
+          onClick={resetView}
+          className="rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--mfm-text)] backdrop-blur transition-colors hover:bg-[var(--mfm-surface-2)]"
+        >
+          Reset View
+        </button>
+        <div className="rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-2 text-[10px] text-[var(--mfm-text)] backdrop-blur">
+          <div className="mb-1 text-[var(--mfm-text-2)]">Restoration Score</div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm bg-[#EF4444]" />
+            <span>&lt; 45</span>
+            <span className="ml-2 h-2 w-2 rounded-sm bg-[#F59E0B]" />
+            <span>45–54</span>
+            <span className="ml-2 h-2 w-2 rounded-sm bg-[#00A86B]" />
+            <span>≥ 55</span>
+          </div>
         </div>
       </div>
+
+      {/* BOTTOM CENTER: status bar */}
       <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-10 flex justify-center">
         <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/80 px-3 py-1 text-[11px] text-[var(--mfm-text-2)] backdrop-blur">
           {cells.length} areas loaded · Weights C{Math.round(weights.carbon * 100)}% B
           {Math.round(weights.biodiversity * 100)}% L{Math.round(weights.livelihood * 100)}% W
           {Math.round(weights.water_soil * 100)}%
-        </div>
-      </div>
-      <div className="absolute right-2 top-12 z-10 rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-2 text-[10px] text-[var(--mfm-text)] backdrop-blur">
-        <div className="mb-1 text-[var(--mfm-text-2)]">Restoration Score</div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-[#EF4444]" />
-          <span>&lt; 45</span>
-          <span className="ml-2 h-2 w-2 rounded-sm bg-[#F59E0B]" />
-          <span>45–54</span>
-          <span className="ml-2 h-2 w-2 rounded-sm bg-[#00A86B]" />
-          <span>≥ 55</span>
         </div>
       </div>
     </div>
