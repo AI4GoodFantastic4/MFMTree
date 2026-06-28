@@ -26,7 +26,7 @@ export function TopBar({ tab, onTab, onExport, theme, onToggleTheme }: Props) {
     >
       <div className="flex items-center gap-3">
         <img
-          src="https://www.menschenfuermenschen.de/wp-content/uploads/2021/03/MfM_Logo_neg_RGB.svg"
+          src="https://www.menschenfuermenschen.de/tcl-uploads/2025/02/MfM-Logo_Blau_Vertical_RGB-_logosvg.svg"
           alt="Menschen für Menschen"
           className="h-8 w-8 rounded-md object-contain"
         />
