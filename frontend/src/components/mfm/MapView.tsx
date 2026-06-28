@@ -97,6 +97,8 @@ export function MapView({
   const flyToIdRef = useRef(flyToId);
   const flyToPadRightRef = useRef(flyToPadRight);
   const resetCameraTimeoutRef = useRef<number | null>(null);
+  const focusRetryTimeoutRef = useRef<number | null>(null);
+  const pendingFocusIdRef = useRef<number | null>(flyToId);
   const [mode, setMode] = useState<"2D" | "3D">("3D");
   const [styleOverride, setStyleOverride] = useState<StyleKey | null>(null);
   const [tokenBad, setTokenBad] = useState(false);
@@ -111,24 +113,47 @@ export function MapView({
   flyToIdRef.current = flyToId;
   flyToPadRightRef.current = flyToPadRight;
 
-  const flyToCell = useCallback((id: number) => {
+  const focusCell = useCallback((id: number, attempt = 0) => {
+    pendingFocusIdRef.current = id;
     const m = mapRef.current;
-    if (!m || !loadedRef.current) return;
+    if (!m || !loadedRef.current) {
+      if (attempt < 20) {
+        if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
+        focusRetryTimeoutRef.current = window.setTimeout(() => focusCell(id, attempt + 1), 100);
+      }
+      return;
+    }
     const f = cellsRef.current.find((cell) => cell.properties.grid_id === id);
-    if (!f) return;
+    if (!f) {
+      if (attempt < 20) {
+        if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
+        focusRetryTimeoutRef.current = window.setTimeout(() => focusCell(id, attempt + 1), 100);
+      }
+      return;
+    }
+    if (focusRetryTimeoutRef.current) {
+      window.clearTimeout(focusRetryTimeoutRef.current);
+      focusRetryTimeoutRef.current = null;
+    }
     const ring = f.geometry.coordinates[0];
+    const bounds = new mapboxgl.LngLatBounds();
     let x = 0;
     let y = 0;
     for (const [lng, lat] of ring) {
       x += lng;
       y += lat;
+      bounds.extend([lng, lat]);
     }
-    m.flyTo({
-      center: [x / ring.length, y / ring.length],
-      zoom: 10,
-      ...CAMERA_3D,
+    const center: mapboxgl.LngLatLike = [x / ring.length, y / ring.length];
+    if (m.getLayer("cells-selected")) {
+      m.setFilter("cells-selected", ["==", ["get", "id"], id]);
+    }
+    m.resize();
+    m.fitBounds(bounds.isEmpty() ? new mapboxgl.LngLatBounds(center, center) : bounds, {
+      maxZoom: 10,
       duration: 1200,
       padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
+      ...CAMERA_3D,
     });
   }, []);
 
@@ -366,7 +391,7 @@ export function MapView({
       requestAnimationFrame(() => {
         map.resize();
         if (flyToIdRef.current != null) {
-          flyToCell(flyToIdRef.current);
+          focusCell(flyToIdRef.current);
         } else {
           resetView(0);
         }
@@ -381,6 +406,7 @@ export function MapView({
 
     return () => {
       if (resetCameraTimeoutRef.current) window.clearTimeout(resetCameraTimeoutRef.current);
+      if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -397,6 +423,7 @@ export function MapView({
     m.once("style.load", () => {
       setupLayers(m);
       enforceCameraMode(m, modeRef.current);
+      if (pendingFocusIdRef.current != null) focusCell(pendingFocusIdRef.current);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStyle]);
@@ -414,6 +441,7 @@ export function MapView({
     if (!m || !loadedRef.current) return;
     const src = m.getSource("cells") as mapboxgl.GeoJSONSource | undefined;
     if (src) src.setData(buildGeoJSON(cells, weights) as never);
+    if (pendingFocusIdRef.current != null) focusCell(pendingFocusIdRef.current);
   }, [cells, weights]);
 
   // toggle 2D/3D
@@ -447,8 +475,9 @@ export function MapView({
   // flyTo — pad right side so the detail panel doesn't cover the target
   useEffect(() => {
     if (flyToId == null) return;
-    flyToCell(flyToId);
-  }, [flyToId, flyToPadRight, flyToRequest, flyToCell]);
+    pendingFocusIdRef.current = flyToId;
+    focusCell(flyToId);
+  }, [flyToId, flyToPadRight, flyToRequest, focusCell]);
 
   return (
     <div
