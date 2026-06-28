@@ -4,7 +4,14 @@ export interface CellProps {
   grid_id: number;
   area_id?: string;
   name?: string;
+  displayName?: string;
+  technicalName?: string;
   region?: string;
+  regionName?: string;
+  zoneName?: string;
+  woredaName?: string;
+  adminLevel?: string;
+  candidateLabel?: string;
   backend_priority_score?: number;
   restoration_score: number;
   roi_class: "Green" | "Yellow" | "Red";
@@ -99,6 +106,49 @@ export function scoreColor(s: number): string {
   return "#EF4444";
 }
 
+export function getCellDisplayName(p: CellProps): string {
+  if (p.displayName?.trim()) return p.displayName.trim();
+  if (p.name?.trim() && !isTechnicalAreaName(p.name)) return p.name.trim();
+
+  const location = [p.regionName || p.region, p.zoneName]
+    .filter((item) => item && item.toLowerCase() !== "ethiopia")
+    .join(" · ");
+  const candidate = p.candidateLabel || candidateLabelFromGrid(p.grid_id);
+  return location ? `${location} · ${candidate}` : candidate;
+}
+
+export function getCellTechnicalName(p: CellProps): string | undefined {
+  if (p.technicalName?.trim()) return p.technicalName.trim();
+  if (p.name?.trim() && isTechnicalAreaName(p.name)) return p.name.trim();
+  if (p.grid_id) return `Grid cell ${p.grid_id}`;
+  return p.area_id;
+}
+
+export function getCellLocationLabel(p: CellProps): string {
+  return [p.regionName || p.region, p.zoneName, p.woredaName]
+    .filter((item) => item && item.toLowerCase() !== "ethiopia")
+    .join(" · ");
+}
+
+export function isTechnicalAreaName(name: string): boolean {
+  const value = name.trim().toLowerCase();
+  if (!value) return true;
+  if (
+    value.startsWith("grid cell") ||
+    value.startsWith("grid_") ||
+    value.startsWith("et-grid-") ||
+    value.startsWith("#")
+  ) {
+    return true;
+  }
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 6 && /^[\w\s-]+$/.test(value);
+}
+
+function candidateLabelFromGrid(gridId: number) {
+  const suffix = Number.isFinite(gridId) ? Math.abs(gridId % 100) || 1 : 1;
+  return `Candidate Area ${String(suffix).padStart(2, "0")}`;
+}
 
 export function centroid(coords: number[][][]): [number, number] {
   const ring = coords[0];

@@ -38,17 +38,8 @@ export const Route = createFileRoute("/")({
 });
 
 function App() {
-  const {
-    weights,
-    setWeight,
-    setPreset,
-    scored,
-    cells,
-    dataSource,
-    usingDemoData,
-    loading,
-    error,
-  } = useScoring();
+  const { weights, setWeight, setPreset, scored, cells, usingDemoData, loading, error } =
+    useScoring();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const [tab, setTab] = useState<TabId>("map");
@@ -187,7 +178,6 @@ function App() {
               setPreset={setPreset}
               topCells={scored.slice(0, 10)}
               onSelect={select}
-              dataSource={dataSource}
               usingDemoData={usingDemoData}
               loading={loading}
               error={error}

@@ -148,13 +148,23 @@ class GeoJsonFlowTest(unittest.TestCase):
             scenario = invoke("POST /scenario", "POST", "/scenario", {"weights": {"carbon": 0.5}})
 
         area_id = "ET-GRID-4360000079"
+        feature_props = response["body"]["geojson"]["features"][0]["properties"]
+        area = response["body"]["areas"][0]
         self.assertEqual(response["statusCode"], 200)
-        self.assertEqual(response["body"]["geojson"]["features"][0]["properties"]["areaId"], area_id)
-        self.assertEqual(response["body"]["areas"][0]["areaId"], area_id)
-        self.assertEqual(response["body"]["areas"][0]["indicators"]["totalAreaHa"], 9824.23)
-        self.assertAlmostEqual(response["body"]["areas"][0]["indicators"]["plantableFraction"], 0.64, places=3)
-        self.assertEqual(response["body"]["areas"][0]["indicators"]["rainfallReliability"], "medium")
-        self.assertEqual(response["body"]["areas"][0]["indicators"]["settlementPressure1kmPct"], 12)
+        self.assertEqual(feature_props["areaId"], area_id)
+        self.assertEqual(feature_props["technicalName"], "Grid cell 4360000079")
+        self.assertEqual(feature_props["candidateLabel"], "Candidate Area 01")
+        self.assertNotIn("Grid cell", feature_props["displayName"])
+        self.assertEqual(feature_props["name"], feature_props["displayName"])
+        self.assertEqual(area["areaId"], area_id)
+        self.assertEqual(area["technicalName"], "Grid cell 4360000079")
+        self.assertEqual(area["candidateLabel"], "Candidate Area 01")
+        self.assertNotIn("Grid cell", area["displayName"])
+        self.assertEqual(area["name"], area["displayName"])
+        self.assertEqual(area["indicators"]["totalAreaHa"], 9824.23)
+        self.assertAlmostEqual(area["indicators"]["plantableFraction"], 0.64, places=3)
+        self.assertEqual(area["indicators"]["rainfallReliability"], "medium")
+        self.assertEqual(area["indicators"]["settlementPressure1kmPct"], 12)
         self.assertIn(area_id, scenario["body"]["scoresByArea"])
 
     def test_low_compute_gee_fields_are_normalized_for_scoring(self) -> None:
@@ -264,6 +274,8 @@ class GeoJsonFlowTest(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(indicators["monitoringFeasibility"], "high")
         self.assertEqual(indicators["plantableFraction"], 0.55)
+        self.assertEqual(response["body"]["areas"][0]["displayName"], "Local Cell")
+        self.assertEqual(response["body"]["areas"][0]["name"], "Local Cell")
 
 
 if __name__ == "__main__":

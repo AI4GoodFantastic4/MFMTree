@@ -6,6 +6,10 @@ INPUT_PATH="${GEE_EXPORT_PATH:-$ROOT_DIR/scripts/output/restoreai_ethiopia_15km_
 GEOMETRY_PATH="${GEOMETRY_OUTPUT_PATH:-$ROOT_DIR/data/processed/areas.geojson}"
 INDICATORS_PATH="${INDICATORS_OUTPUT_PATH:-$ROOT_DIR/data/processed/area_indicators.json}"
 FULL_GIS_PATH="${FULL_GIS_OUTPUT_PATH:-$ROOT_DIR/data/processed/final_gis_data.geojson}"
+ADMIN_ENRICHMENT_ENABLED="${ADMIN_ENRICHMENT_ENABLED:-true}"
+ADMIN_BOUNDARIES_PATH="${ADMIN_BOUNDARIES_PATH:-}"
+ADMIN_BOUNDARIES_URL="${ADMIN_BOUNDARIES_URL:-}"
+ADMIN_CACHE_PATH="${ADMIN_CACHE_PATH:-$ROOT_DIR/data/admin/ethiopia_admin3.geojson}"
 BUCKET="${PROCESSED_BUCKET:-${PROCESSED_DATA_BUCKET:-}}"
 RUN_DATE="${RUN_DATE:-$(date -u +%Y-%m-%d)}"
 
@@ -32,11 +36,42 @@ python3 "$ROOT_DIR/scripts/normalize_gee_output.py" \
   --indicators-output "$INDICATORS_PATH" \
   --full-gis-output "$FULL_GIS_PATH"
 
+if [[ "$ADMIN_ENRICHMENT_ENABLED" == "true" ]]; then
+  ADMIN_ARGS=(
+    --areas-input "$GEOMETRY_PATH"
+    --areas-output "$GEOMETRY_PATH"
+    --admin-cache "$ADMIN_CACHE_PATH"
+  )
+  if [[ -n "$ADMIN_BOUNDARIES_PATH" ]]; then
+    ADMIN_ARGS+=(--admin-boundaries "$ADMIN_BOUNDARIES_PATH")
+  fi
+  if [[ -n "$ADMIN_BOUNDARIES_URL" ]]; then
+    ADMIN_ARGS+=(--admin-url "$ADMIN_BOUNDARIES_URL")
+  fi
+  python3 "$ROOT_DIR/scripts/enrich_admin_boundaries.py" "${ADMIN_ARGS[@]}"
+
+  FULL_GIS_ADMIN_ARGS=(
+    --areas-input "$FULL_GIS_PATH"
+    --areas-output "$FULL_GIS_PATH"
+    --admin-cache "$ADMIN_CACHE_PATH"
+  )
+  if [[ -n "$ADMIN_BOUNDARIES_PATH" ]]; then
+    FULL_GIS_ADMIN_ARGS+=(--admin-boundaries "$ADMIN_BOUNDARIES_PATH")
+  fi
+  if [[ -n "$ADMIN_BOUNDARIES_URL" ]]; then
+    FULL_GIS_ADMIN_ARGS+=(--admin-url "$ADMIN_BOUNDARIES_URL")
+  fi
+  python3 "$ROOT_DIR/scripts/enrich_admin_boundaries.py" "${FULL_GIS_ADMIN_ARGS[@]}"
+fi
+
 aws s3 cp "$GEOMETRY_PATH" "s3://$BUCKET/geometry/areas.geojson" --content-type application/geo+json
 aws s3 cp "$INDICATORS_PATH" "s3://$BUCKET/indicators/latest.json" --content-type application/json
 aws s3 cp "$INDICATORS_PATH" "s3://$BUCKET/indicators/area_indicators_${RUN_DATE}.json" --content-type application/json
 aws s3 cp "$FULL_GIS_PATH" "s3://$BUCKET/gis/final_gis_data.geojson" --content-type application/geo+json
 aws s3 cp "$INPUT_PATH" "s3://$BUCKET/metadata/gee_exports/restoreai_ethiopia_low_compute_${RUN_DATE}.geojson" --content-type application/geo+json
+if [[ "$ADMIN_ENRICHMENT_ENABLED" == "true" && -f "$ADMIN_CACHE_PATH" ]]; then
+  aws s3 cp "$ADMIN_CACHE_PATH" "s3://$BUCKET/sources/admin/ethiopia_admin3.geojson" --content-type application/geo+json
+fi
 
 echo "Published GEE outputs to s3://$BUCKET"
 echo "  geometry/areas.geojson"
@@ -44,3 +79,6 @@ echo "  indicators/latest.json"
 echo "  indicators/area_indicators_${RUN_DATE}.json"
 echo "  gis/final_gis_data.geojson"
 echo "  metadata/gee_exports/restoreai_ethiopia_low_compute_${RUN_DATE}.geojson"
+if [[ "$ADMIN_ENRICHMENT_ENABLED" == "true" ]]; then
+  echo "  sources/admin/ethiopia_admin3.geojson"
+fi

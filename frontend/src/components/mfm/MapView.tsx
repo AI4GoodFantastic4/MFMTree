@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Home } from "lucide-react";
-import { computeScore, type CellFeature, type Weights } from "@/lib/cells";
+import {
+  computeScore,
+  getCellDisplayName,
+  getCellLocationLabel,
+  getCellTechnicalName,
+  type CellFeature,
+  type Weights,
+} from "@/lib/cells";
 import type { Theme } from "@/hooks/useTheme";
 
 interface Props {
@@ -47,7 +54,9 @@ function buildGeoJSON(cells: CellFeature[], weights: Weights) {
       properties: {
         id: f.properties.grid_id,
         areaId: f.properties.area_id,
-        name: f.properties.name,
+        name: getCellDisplayName(f.properties),
+        technicalName: getCellTechnicalName(f.properties),
+        locationLabel: getCellLocationLabel(f.properties),
         computed_score: computeScore(f.properties, weights),
         eligibility_status: f.properties.eligibility_status,
       },
@@ -297,6 +306,8 @@ export function MapView({
         eligibility_status: string;
         areaId?: string;
         name?: string;
+        technicalName?: string;
+        locationLabel?: string;
       };
       if (!popupRef.current) {
         popupRef.current = new mapboxgl.Popup({
@@ -309,7 +320,7 @@ export function MapView({
       popupRef.current
         .setLngLat(ev.lngLat)
         .setHTML(
-          `<div style="font-family:Inter;font-size:12px;color:#f0f4ff;background:#0d1424;padding:6px 8px;border:1px solid #1e2d50;border-radius:6px"><div style="font-weight:600">${props.name || props.areaId || "Area"}</div><div>Score ${props.computed_score.toFixed(1)}</div><div style="color:#8b9cc8;font-size:11px">${props.eligibility_status}</div></div>`,
+          `<div style="font-family:Inter;font-size:12px;color:#f0f4ff;background:#0d1424;padding:6px 8px;border:1px solid #1e2d50;border-radius:6px"><div style="font-weight:600">${props.name || props.areaId || "Area"}</div><div style="color:#8b9cc8;font-size:11px">${props.technicalName || props.locationLabel || ""}</div><div>Score ${props.computed_score.toFixed(1)}</div><div style="color:#8b9cc8;font-size:11px">${props.eligibility_status}</div></div>`,
         )
         .addTo(m);
     };

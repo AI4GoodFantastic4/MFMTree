@@ -62,6 +62,31 @@ The normalizer writes:
 
 For GEE grid cells, `grid_id` becomes `areaId` in the form `ET-GRID-{grid_id}`. Final scores are not written to the GeoJSON.
 
+The raw grid identifier is not used as the primary user-facing name. The
+normalizer writes:
+
+- `areaId`: stable internal join key.
+- `technicalName`: traceable source label such as `Grid cell 4360000079`.
+- `displayName`: NGO-facing label such as `Southwest Ethiopia · Candidate Area
+  01`.
+- `regionName`, `zoneName`, `woredaName`: copied from source/admin fields when
+  available.
+
+Admin boundaries are then joined with:
+
+```bash
+python3 scripts/enrich_admin_boundaries.py \
+  --areas-input data/processed/areas.geojson \
+  --areas-output data/processed/areas.geojson \
+  --admin-cache data/admin/ethiopia_admin3.geojson
+```
+
+The default admin source is the public ICPAC GeoServer GeoJSON mirror of the
+ICPAC Ethiopia Admin 3 boundary dataset. For audited/offline runs, download
+the boundary GeoJSON first and pass `--admin-boundaries path/to/admin3.geojson`.
+The join is centroid-based and writes `regionName`, `zoneName`, `woredaName`,
+`adminLevel`, `adminSource`, and `displayName`.
+
 ## Upload to S3
 
 The backend defaults expect:
@@ -69,6 +94,7 @@ The backend defaults expect:
 ```bash
 aws s3 cp data/processed/areas.geojson "s3://$PROCESSED_BUCKET/geometry/areas.geojson"
 aws s3 cp data/processed/area_indicators.json "s3://$PROCESSED_BUCKET/indicators/latest.json"
+aws s3 cp data/admin/ethiopia_admin3.geojson "s3://$PROCESSED_BUCKET/sources/admin/ethiopia_admin3.geojson"
 ```
 
 Or run the combined publish helper:

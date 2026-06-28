@@ -44,6 +44,10 @@ class NormalizeGeeOutputTest(unittest.TestCase):
         normalizer.validate_outputs(geometry, indicators)
 
         self.assertEqual(geometry["features"][0]["properties"]["areaId"], "ET-GRID-391600_70700")
+        self.assertEqual(geometry["features"][0]["properties"]["technicalName"], "Grid cell 391600_70700")
+        self.assertEqual(geometry["features"][0]["properties"]["candidateLabel"], "Candidate Area 01")
+        self.assertNotIn("Grid cell", geometry["features"][0]["properties"]["displayName"])
+        self.assertEqual(geometry["features"][0]["properties"]["name"], geometry["features"][0]["properties"]["displayName"])
         self.assertNotIn("priorityScore", geometry["features"][0]["properties"])
         self.assertEqual(indicators[0]["areaId"], "ET-GRID-391600_70700")
         self.assertEqual(indicators[0]["plantableFraction"], 0.62)
@@ -104,6 +108,10 @@ class NormalizeGeeOutputTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(geometry_path.read_text(encoding="utf-8"))["type"], "FeatureCollection")
+            props = json.loads(geometry_path.read_text(encoding="utf-8"))["features"][0]["properties"]
+            self.assertEqual(props["technicalName"], "Grid cell 123")
+            self.assertEqual(props["candidateLabel"], "Candidate Area 01")
+            self.assertNotEqual(props["name"], "Grid cell 123")
             self.assertIn("areas", json.loads(indicators_path.read_text(encoding="utf-8")))
             self.assertEqual(json.loads(full_gis_path.read_text(encoding="utf-8"))["type"], "FeatureCollection")
 

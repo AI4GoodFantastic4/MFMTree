@@ -334,7 +334,7 @@ def _validate_feature_collection(payload: Any) -> dict[str, Any] | None:
     if not isinstance(features, list):
         return None
     valid_features = []
-    for feature in features:
+    for index, feature in enumerate(features, start=1):
         if not isinstance(feature, dict) or feature.get("type") != "Feature":
             continue
         properties = feature.get("properties")
@@ -344,10 +344,7 @@ def _validate_feature_collection(payload: Any) -> dict[str, Any] | None:
         area_id = _stable_area_id(properties)
         if not area_id:
             continue
-        properties = dict(properties)
-        properties.setdefault("areaId", area_id)
-        properties.setdefault("name", _area_name(properties))
-        properties.setdefault("region", "Ethiopia")
+        properties = _enrich_area_identity(dict(properties), geometry, index)
         feature = {**feature, "properties": properties}
         valid_features.append(feature)
     if not valid_features:
@@ -360,14 +357,12 @@ def _merge_geometry_and_indicators(geometry: Any, indicators_payload: Any) -> li
     areas: list[dict[str, Any]] = []
 
     if isinstance(geometry, dict) and geometry.get("type") == "FeatureCollection":
-        for feature in geometry.get("features", []):
+        for index, feature in enumerate(geometry.get("features", []), start=1):
             properties = dict(feature.get("properties") or {})
             area_id = _stable_area_id(properties)
             if not area_id:
                 continue
-            properties.setdefault("areaId", area_id)
-            properties.setdefault("name", _area_name(properties))
-            properties.setdefault("region", "Ethiopia")
+            properties = _enrich_area_identity(properties, feature.get("geometry"), index)
             indicators = _normalize_indicators({**_indicators_from_properties(properties), **indicators_by_id.get(area_id, {})})
             areas.append(
                 {
@@ -418,6 +413,140 @@ def _area_name(properties: dict[str, Any]) -> str:
     if properties.get("grid_id") is not None:
         return f"Grid cell {properties['grid_id']}"
     return str(properties.get("areaId") or properties.get("area_id") or "Candidate area")
+
+
+def _enrich_area_identity(properties: dict[str, Any], geometry: Any | None = None, index: int = 0) -> dict[str, Any]:
+    area_id = _stable_area_id(properties)
+    if area_id:
+        properties["areaId"] = area_id
+
+    original_name = str(properties.get("name") or "").strip()
+    technical_name = _technical_name(properties)
+    candidate_label = _candidate_label(properties, index)
+    region_name, admin_level = _region_name(properties, geometry)
+    zone_name = _first_text(properties, "zoneName", "zone_name", "admin2Name", "admin2_name", "ADM2_EN", "adm2_en", "zone")
+    woreda_name = _first_text(properties, "woredaName", "woreda_name", "admin3Name", "admin3_name", "ADM3_EN", "adm3_en", "woreda")
+
+    display_name = _first_text(properties, "displayName", "display_name")
+    if not display_name:
+        if original_name and not _is_technical_name(original_name):
+            display_name = original_name
+        else:
+            parts = [part for part in (region_name, zone_name, candidate_label) if part]
+            display_name = " · ".join(parts) if parts else candidate_label or technical_name or area_id or "Candidate area"
+
+    properties["technicalName"] = _first_text(properties, "technicalName", "technical_name") or technical_name or original_name or area_id
+    properties["candidateLabel"] = candidate_label
+    properties["displayName"] = display_name
+    properties["name"] = display_name
+    properties["regionName"] = region_name or "Ethiopia"
+    properties["region"] = properties["regionName"]
+    if zone_name:
+        properties["zoneName"] = zone_name
+    if woreda_name:
+        properties["woredaName"] = woreda_name
+    properties["adminLevel"] = _first_text(properties, "adminLevel", "admin_level") or admin_level
+    return properties
+
+
+def _technical_name(properties: dict[str, Any]) -> str | None:
+    existing = _first_text(properties, "technicalName", "technical_name")
+    if existing:
+        return existing
+    name = str(properties.get("name") or "").strip()
+    if name and _is_technical_name(name):
+        return name
+    if properties.get("grid_id") is not None:
+        return f"Grid cell {properties['grid_id']}"
+    area_id = _stable_area_id(properties)
+    return area_id
+
+
+def _candidate_label(properties: dict[str, Any], index: int) -> str:
+    existing = _first_text(properties, "candidateLabel", "candidate_label")
+    if existing:
+        return existing
+    number = index if index > 0 else _candidate_number_from_id(_stable_area_id(properties) or str(properties.get("grid_id") or ""))
+    return f"Candidate Area {number:02d}"
+
+
+def _candidate_number_from_id(value: str) -> int:
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if not digits:
+        return 1
+    return int(digits[-2:] or digits) or 1
+
+
+def _region_name(properties: dict[str, Any], geometry: Any | None) -> tuple[str | None, str]:
+    explicit = _first_text(properties, "regionName", "region_name", "admin1Name", "admin1_name", "ADM1_EN", "adm1_en", "state")
+    if explicit:
+        return explicit, "region"
+    region = _first_text(properties, "region")
+    if region and region.lower() not in {"ethiopia", "et"}:
+        return region, "region"
+    inferred = _broad_region_from_geometry(geometry)
+    if inferred:
+        return inferred, "geographic-fallback"
+    return region or "Ethiopia", "country"
+
+
+def _broad_region_from_geometry(geometry: Any | None) -> str | None:
+    centroid = _geometry_centroid(geometry)
+    if centroid is None:
+        return None
+    lng, lat = centroid
+    if lat >= 11:
+        return "Northern Ethiopia"
+    if lng < 37.5 and lat < 9.5:
+        return "Southwest Ethiopia"
+    if lng < 38.7:
+        return "Western Ethiopia"
+    if lng >= 41:
+        return "Eastern Ethiopia"
+    if lat < 7.5:
+        return "Southern Ethiopia"
+    return "Central Ethiopia"
+
+
+def _geometry_centroid(geometry: Any | None) -> tuple[float, float] | None:
+    if not isinstance(geometry, dict):
+        return None
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, list):
+        return None
+    if geometry.get("type") == "MultiPolygon" and coordinates:
+        polygon = coordinates[0]
+        if not isinstance(polygon, list) or not polygon:
+            return None
+        ring = polygon[0]
+    elif geometry.get("type") == "Polygon" and coordinates:
+        ring = coordinates[0]
+    else:
+        return None
+    points = [point for point in ring if isinstance(point, list) and len(point) >= 2]
+    if not points:
+        return None
+    lng = sum(float(point[0]) for point in points) / len(points)
+    lat = sum(float(point[1]) for point in points) / len(points)
+    return lng, lat
+
+
+def _first_text(properties: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = properties.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
+def _is_technical_name(name: str) -> bool:
+    value = name.strip().lower()
+    if not value:
+        return True
+    if value.startswith(("grid cell", "grid_", "et-grid-", "#")):
+        return True
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return bool(digits) and len(digits) >= 6 and value.replace("-", "").replace("_", "").replace(" ", "").isalnum()
 
 
 def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
