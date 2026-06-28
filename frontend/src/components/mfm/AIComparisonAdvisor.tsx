@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, ChevronDown, Volume2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { synthesizeSpeech } from "@/lib/api";
+import { synthesizeSpeech, type TtsAlignmentSegment } from "@/lib/api";
 import { TypewriterText } from "@/components/mfm/TypewriterText";
 
 export type VerdaState = "idle" | "thinking" | "comparing" | "speaking" | "warning" | "recommendation";
@@ -21,6 +21,11 @@ type Props = {
   onDismiss?: () => void;
   onNarrativeComplete?: () => void;
   note?: string | null;
+};
+
+type PreparedSpeech = Awaited<ReturnType<typeof synthesizeSpeech>> & {
+  preparedText: string;
+  preparedAlignment: TtsAlignmentSegment[];
 };
 
 const STATUS_COPY: Record<VerdaState, { eyebrow: string; headline: string; body: string }> = {
@@ -60,9 +65,19 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voicePreparing, setVoicePreparing] = useState(false);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+  const [isAudioSpeaking, setIsAudioSpeaking] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [alignment, setAlignment] = useState<TtsAlignmentSegment[]>([]);
+  const [spokenText, setSpokenText] = useState("");
+  const [preparedSpeech, setPreparedSpeech] = useState<PreparedSpeech | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const progressTimerRef = useRef<number | null>(null);
+  const progressStartedAtRef = useRef(0);
   const status = STATUS_COPY[state];
+  const effectiveState = isAudioSpeaking ? "speaking" : state;
   const headline = result?.recommendedAreaLabel
     ? `HabtamuAI recommends ${result.recommendedAreaLabel}`
     : status.headline;
@@ -72,9 +87,7 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
   const showRecommendationBadge = state === "recommendation" && Boolean(result?.recommendedAreaLabel);
   const canRead = typeof window !== "undefined" && "speechSynthesis" in window;
 
-  const readText = useMemo(() => {
-    return [headline, speechText].filter(Boolean).join(". ");
-  }, [headline, speechText]);
+  const readText = useMemo(() => speechText.trim(), [speechText]);
 
   useEffect(() => {
     if (!canRead) return;
@@ -89,54 +102,165 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     return () => {
       audioRef.current?.pause();
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      stopProgressTimer();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreparedSpeech(null);
+    setTtsError(null);
+    if (!result?.explanation || !readText) return;
+
+    async function prepareVoice() {
+      setVoicePreparing(true);
+      try {
+        const tts = await synthesizeSpeech(readText);
+        if (cancelled) return;
+        const preparedText = tts.normalizedText || readText;
+        const preparedAlignment = tts.alignment?.length ? tts.alignment : estimateAlignment(preparedText);
+        setPreparedSpeech({ ...tts, preparedText, preparedAlignment });
+      } catch (error) {
+        if (!cancelled) {
+          if (import.meta.env.DEV) console.warn("Voice prefetch failed.", error);
+          setPreparedSpeech(null);
+        }
+      } finally {
+        if (!cancelled) setVoicePreparing(false);
+      }
+    }
+
+    prepareVoice();
+    return () => {
+      cancelled = true;
+    };
+  }, [readText, result?.explanation]);
 
   const handleReadAloud = async () => {
     if (!readText || voiceLoading) return;
     setVoiceLoading(true);
+    setTtsError(null);
+    setCurrentTimeMs(0);
+    setSpokenText(readText);
     try {
-      const audioBlob = await synthesizeSpeech(readText);
-      audioRef.current?.pause();
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      const url = URL.createObjectURL(audioBlob);
-      audioUrlRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => {
-        setVoiceLoading(false);
-        URL.revokeObjectURL(url);
-        if (audioUrlRef.current === url) audioUrlRef.current = null;
-      };
-      audio.onerror = () => {
-        setVoiceLoading(false);
-        URL.revokeObjectURL(url);
-        if (audioUrlRef.current === url) audioUrlRef.current = null;
-        speakWithBrowserVoice(readText, voices);
-      };
-      await audio.play();
+      const tts =
+        preparedSpeech?.preparedText === readText
+          ? preparedSpeech
+          : await synthesizeSpeech(readText).then((fresh) => {
+              const preparedText = fresh.normalizedText || readText;
+              const preparedAlignment = fresh.alignment?.length
+                ? fresh.alignment
+                : estimateAlignment(preparedText);
+              return { ...fresh, preparedText, preparedAlignment };
+            });
+      await playPreparedSpeech(tts);
       return;
     } catch (error) {
       if (import.meta.env.DEV) console.warn("ElevenLabs voice unavailable; using browser speech fallback.", error);
-      speakWithBrowserVoice(readText, voices);
+      const fallbackAlignment = estimateAlignment(readText);
+      setAlignment(fallbackAlignment);
+      speakWithBrowserVoice(readText, voices, fallbackAlignment);
+      setTtsError("Voice service unavailable; using local browser voice.");
     }
     setVoiceLoading(false);
   };
 
   const canReadAloud = Boolean(readText) && (canRead || typeof window !== "undefined");
 
-  function speakWithBrowserVoice(text: string, availableVoices: SpeechSynthesisVoice[]) {
-    if (!canRead) return;
+  async function playPreparedSpeech(tts: PreparedSpeech) {
+    const nextText = tts.preparedText;
+    const nextAlignment = tts.preparedAlignment;
+    setSpokenText(nextText);
+    setAlignment(nextAlignment);
+    audioRef.current?.pause();
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    stopProgressTimer();
+    if (!tts.audioBlob) {
+      speakWithBrowserVoice(nextText, voices, nextAlignment);
+      setVoiceLoading(false);
+      if (tts.fallback) setTtsError("Using local browser voice; ElevenLabs audio is unavailable.");
+      return;
+    }
+    const url = URL.createObjectURL(tts.audioBlob);
+    audioUrlRef.current = url;
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.onplay = () => {
+      setVoiceLoading(false);
+      setIsAudioSpeaking(true);
+    };
+    audio.ontimeupdate = () => setCurrentTimeMs(audio.currentTime * 1000);
+    audio.onpause = () => {
+      if (!audio.ended) setIsAudioSpeaking(false);
+    };
+    audio.onended = () => {
+      setVoiceLoading(false);
+      setCurrentTimeMs(nextAlignment.at(-1)?.endMs || audio.duration * 1000 || 0);
+      setIsAudioSpeaking(false);
+      URL.revokeObjectURL(url);
+      if (audioUrlRef.current === url) audioUrlRef.current = null;
+    };
+    audio.onerror = () => {
+      setVoiceLoading(false);
+      setIsAudioSpeaking(false);
+      URL.revokeObjectURL(url);
+      if (audioUrlRef.current === url) audioUrlRef.current = null;
+      speakWithBrowserVoice(nextText, voices, nextAlignment);
+      setTtsError("ElevenLabs audio playback failed; using local browser voice.");
+    };
+    await audio.play();
+  }
+
+  function speakWithBrowserVoice(
+    text: string,
+    availableVoices: SpeechSynthesisVoice[],
+    nextAlignment = estimateAlignment(text),
+  ) {
+    if (!canRead) {
+      setIsAudioSpeaking(false);
+      return;
+    }
     window.speechSynthesis.cancel();
+    setSpokenText(text);
+    setAlignment(nextAlignment);
+    startProgressTimer(nextAlignment);
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.voice = selectNaturalVoice(availableVoices.length ? availableVoices : window.speechSynthesis.getVoices());
     utterance.lang = utterance.voice?.lang || "en-US";
     utterance.rate = 0.88;
     utterance.pitch = 0.96;
     utterance.volume = 0.95;
-    utterance.onend = () => setVoiceLoading(false);
-    utterance.onerror = () => setVoiceLoading(false);
+    utterance.onstart = () => setIsAudioSpeaking(true);
+    utterance.onend = () => {
+      setVoiceLoading(false);
+      setCurrentTimeMs(nextAlignment.at(-1)?.endMs || 0);
+      setIsAudioSpeaking(false);
+      stopProgressTimer();
+    };
+    utterance.onerror = () => {
+      setVoiceLoading(false);
+      setIsAudioSpeaking(false);
+      stopProgressTimer();
+      setTtsError("Local browser voice failed. Text remains visible.");
+    };
     window.speechSynthesis.speak(utterance);
+  }
+
+  function startProgressTimer(nextAlignment: TtsAlignmentSegment[]) {
+    stopProgressTimer();
+    setCurrentTimeMs(0);
+    progressStartedAtRef.current = performance.now();
+    progressTimerRef.current = window.setInterval(() => {
+      setCurrentTimeMs(performance.now() - progressStartedAtRef.current);
+    }, 80);
+    window.setTimeout(() => {
+      if (progressTimerRef.current) setCurrentTimeMs(nextAlignment.at(-1)?.endMs || 0);
+    }, nextAlignment.at(-1)?.endMs || 0);
+  }
+
+  function stopProgressTimer() {
+    if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+    progressTimerRef.current = null;
   }
 
   return (
@@ -145,12 +269,12 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
       <div className="habtamu-advisor-glow absolute inset-0" />
       <div className="relative flex gap-4">
         <div className="flex shrink-0 flex-col items-center gap-2">
-          <VerdaAvatar state={state} />
+          <VerdaAvatar state={effectiveState} />
           <span
             className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-            style={{ borderColor: badgeColor(state), color: badgeColor(state) }}
+            style={{ borderColor: badgeColor(effectiveState), color: badgeColor(effectiveState) }}
           >
-            {status.eyebrow}
+            {isAudioSpeaking ? "Speaking" : status.eyebrow}
           </span>
         </div>
 
@@ -173,12 +297,20 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
                   )}
                 </div>
                 <p className="min-h-[3.5rem] text-sm leading-relaxed text-[var(--habtamu-text)]">
-                  <TypewriterText
-                    key={speechText}
-                    text={speechText}
-                    speedMs={state === "thinking" || state === "comparing" ? 18 : 20}
-                    onComplete={state === "speaking" ? onNarrativeComplete : undefined}
-                  />
+                  {isAudioSpeaking || alignment.length ? (
+                    <SpokenTextHighlighter
+                      text={spokenText || speechText}
+                      alignment={alignment}
+                      currentTimeMs={currentTimeMs}
+                    />
+                  ) : (
+                    <TypewriterText
+                      key={speechText}
+                      text={speechText}
+                      speedMs={state === "thinking" || state === "comparing" ? 18 : 20}
+                      onComplete={state === "speaking" ? onNarrativeComplete : undefined}
+                    />
+                  )}
                 </p>
               </div>
               {onDismiss && (
@@ -224,16 +356,63 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
                 disabled={!canReadAloud || voiceLoading}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[var(--habtamu-border)] px-2 py-1 text-[11px] font-medium text-[var(--habtamu-muted)] transition-colors hover:border-[var(--habtamu-accent)] hover:text-[var(--habtamu-accent-strong)] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Volume2 className="h-3.5 w-3.5" /> {voiceLoading ? "Generating voice..." : "Read aloud"}
+                <Volume2 className="h-3.5 w-3.5" />{" "}
+                {voiceLoading
+                  ? "Starting voice..."
+                  : voicePreparing
+                    ? "Preparing voice..."
+                    : "Read aloud"}
               </button>
             </div>
 
+            {ttsError && <p className="mt-2 text-[10px] text-[#F59E0B]">{ttsError}</p>}
             {note && <p className="mt-2 text-[10px] text-[#F59E0B]">{note}</p>}
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function SpokenTextHighlighter({
+  text,
+  alignment,
+  currentTimeMs,
+}: {
+  text: string;
+  alignment: TtsAlignmentSegment[];
+  currentTimeMs: number;
+}) {
+  const segments = alignment.length ? alignment : estimateAlignment(text);
+  return (
+    <>
+      {segments.map((segment, index) => {
+        const spoken = currentTimeMs >= segment.endMs;
+        const active = currentTimeMs >= segment.startMs && currentTimeMs < segment.endMs;
+        return (
+          <span
+            key={`${segment.text}-${index}-${segment.startMs}`}
+            className="habtamu-spoken-word transition-[color,text-shadow,opacity] duration-150"
+            data-active={active || undefined}
+            data-spoken={spoken || undefined}
+          >
+            {segment.text}
+            {index < segments.length - 1 ? " " : ""}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function estimateAlignment(text: string): TtsAlignmentSegment[] {
+  const words = text.match(/\S+/g) || [];
+  const msPerWord = 60000 / 155;
+  return words.map((word, index) => ({
+    text: word,
+    startMs: Math.round(index * msPerWord),
+    endMs: Math.round((index + 1) * msPerWord),
+  }));
 }
 
 function selectNaturalVoice(voices: SpeechSynthesisVoice[]) {
@@ -438,6 +617,9 @@ function VerdaStyles() {
       .habtamu-bubble{border-color:var(--habtamu-border);background:var(--habtamu-bubble-bg);color:var(--habtamu-text)}
       .habtamu-evidence{border-color:var(--habtamu-border);background:var(--habtamu-evidence-bg)}
       .habtamu-evidence-pill{border-color:var(--habtamu-border);background:var(--habtamu-pill-bg);color:var(--habtamu-accent-strong)}
+      .habtamu-spoken-word{color:var(--habtamu-text);opacity:.86}
+      .habtamu-spoken-word[data-spoken="true"]{color:var(--habtamu-accent-strong);opacity:1}
+      .habtamu-spoken-word[data-active="true"]{color:var(--habtamu-accent-strong);opacity:1;text-shadow:0 0 10px rgba(31,214,192,.78),0 0 18px rgba(31,214,192,.42)}
       [data-mfm-theme="light"] .habtamu-advisor{--habtamu-text:#0f172a;--habtamu-muted:#475569;--habtamu-border:rgba(14,116,144,.22);--habtamu-bubble-bg:rgba(255,255,255,.9);--habtamu-evidence-bg:rgba(15,118,110,.06);--habtamu-hover-bg:rgba(15,23,42,.06);--habtamu-accent:#0f766e;--habtamu-accent-strong:#0f766e;--habtamu-pill-bg:rgba(15,118,110,.08);--habtamu-cursor:#0f766e;background:linear-gradient(135deg,rgba(248,250,252,.98),rgba(236,253,245,.94));box-shadow:0 18px 40px rgba(15,23,42,.12)}
       [data-mfm-theme="light"] .habtamu-advisor-glow{background:radial-gradient(circle at 12% 12%,rgba(20,184,166,.16),transparent 30%),radial-gradient(circle at 86% 22%,rgba(37,99,235,.1),transparent 34%)}
       .verda{--glow:#1fd6c0;--ring:rgba(120,230,210,.3);display:inline-block;line-height:0;filter:drop-shadow(0 18px 24px rgba(0,0,0,.28))}

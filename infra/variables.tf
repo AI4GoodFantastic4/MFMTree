@@ -51,3 +51,21 @@ variable "elevenlabs_voice_name" {
   type        = string
   default     = "Eric"
 }
+
+variable "elevenlabs_voice_id" {
+  description = "Optional ElevenLabs voice id. If empty, the API resolves elevenlabs_voice_name."
+  type        = string
+  default     = ""
+}
+
+variable "elevenlabs_model_id" {
+  description = "ElevenLabs model id used for timestamped TTS."
+  type        = string
+  default     = "eleven_turbo_v2_5"
+}
+
+variable "tts_enabled" {
+  description = "Whether Lambda should attempt ElevenLabs TTS. When false it returns estimated text alignment only."
+  type        = bool
+  default     = true
+}

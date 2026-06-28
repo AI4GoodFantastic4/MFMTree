@@ -32,10 +32,18 @@ export interface CellProps {
   near_protected_area: number;
   plant_fit: number;
   carbon_credit_readiness?: "low" | "medium" | "high";
+  cost_efficiency_score?: number;
   risk_score?: number;
   risk_flags?: string[];
   evidence?: string[];
   uncertainties?: string[];
+  previous_priority_score?: number;
+  previous_carbon_score?: number;
+  previous_biodiversity_score?: number;
+  previous_livelihood_score?: number;
+  previous_tree_survival_score?: number;
+  previous_cost_efficiency_score?: number;
+  previous_risk_score?: number;
 }
 
 export interface CellFeature {

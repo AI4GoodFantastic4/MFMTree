@@ -24,7 +24,10 @@ resource "aws_lambda_function" "api" {
       ALLOW_MOCK_DATA        = tostring(var.allow_mock_data)
       BEDROCK_ENABLED        = tostring(var.bedrock_enabled)
       BEDROCK_MODEL_ID       = var.bedrock_model_id
+      TTS_ENABLED            = tostring(var.tts_enabled)
       ELEVENLABS_SECRET_NAME = local.elevenlabs_secret_name
+      ELEVENLABS_MODEL_ID    = var.elevenlabs_model_id
+      ELEVENLABS_VOICE_ID    = var.elevenlabs_voice_id
       ELEVENLABS_VOICE_NAME  = var.elevenlabs_voice_name
     }
   }

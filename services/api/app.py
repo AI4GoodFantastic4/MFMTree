@@ -6,7 +6,7 @@ from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost
 from data import DataUnavailableError, get_area, load_area_collection, load_areas
 from data_sources import get_data_source, load_data_sources
 from scoring_engine import apply_scores, score_areas, scored_area_list
-from voice import VoiceGenerationError, generate_voice_audio
+from voice import VoiceGenerationError, generate_voice_audio, generate_voice_fallback
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -116,7 +116,7 @@ def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
         scored_area = apply_scores(area)
         return _json(200, {"areaId": area_id, "fieldBrief": generate_field_brief(scored_area, estimate_cost_for_area(scored_area))})
 
-    if route_key == "POST /voice" or (method == "POST" and path == "/voice"):
+    if route_key in {"POST /voice", "POST /tts"} or (method == "POST" and path in {"/voice", "/tts"}):
         return _handle_voice(event)
 
     return _json(404, {"message": f"Unsupported route: {method} {path or route_key}"})
@@ -135,8 +135,8 @@ def _handle_voice(event: dict[str, Any]) -> dict[str, Any]:
     try:
         return _json(200, generate_voice_audio(text))
     except VoiceGenerationError as exc:
-        print(f"Voice generation failed; frontend should fall back to browser speech: {exc}")
-        return _json(502, {"message": str(exc), "provider": "elevenlabs"})
+        print(f"Voice generation unavailable; returning alignment-only fallback: {exc}")
+        return _json(200, generate_voice_fallback(text, str(exc)))
 
 
 def _handle_budget_plan(event: dict[str, Any]) -> dict[str, Any]:

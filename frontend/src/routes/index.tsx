@@ -9,7 +9,6 @@ import { CompareTab } from "@/components/mfm/CompareTab";
 import { useScoring } from "@/hooks/useScoring";
 import { useTheme } from "@/hooks/useTheme";
 
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -39,7 +38,17 @@ export const Route = createFileRoute("/")({
 });
 
 function App() {
-  const { weights, setWeight, setPreset, scored, cells, dataSource, usingDemoData, loading, error } = useScoring();
+  const {
+    weights,
+    setWeight,
+    setPreset,
+    scored,
+    cells,
+    dataSource,
+    usingDemoData,
+    loading,
+    error,
+  } = useScoring();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const [tab, setTab] = useState<TabId>("map");
@@ -158,7 +167,13 @@ function App() {
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
-      <TopBar tab={tab} onTab={setTab} onExport={handleExport} theme={theme} onToggleTheme={toggleTheme} />
+      <TopBar
+        tab={tab}
+        onTab={setTab}
+        onExport={handleExport}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
       <div
         className="flex min-h-0 flex-1 overflow-hidden"
@@ -181,24 +196,6 @@ function App() {
               className="relative min-w-0 flex-1 overflow-hidden"
               style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}
             >
-              {compareSelectFor && (
-                <div
-                  className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-2 text-sm font-medium text-white"
-                  style={{ background: "#0070FF" }}
-                >
-                  <span>Selecting for Cell {compareSelectFor} — click any cell on the map</span>
-                  <button
-                    onClick={() => {
-                      setCompareSelectFor(null);
-                      setTab("compare");
-                    }}
-                    className="rounded border border-white/40 px-2 py-0.5 text-xs hover:bg-white/10"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
               <MapView
                 cells={cells}
                 weights={weights}
@@ -206,7 +203,21 @@ function App() {
                 onSelect={handleMapSelect}
                 flyToId={flyToId}
                 theme={theme}
-                banner={usingDemoData ? "Data source: demo fallback" : `Data source: ${dataSource}`}
+                isPanelOpen={!!selectedFeature && !compareSelectFor}
+                selectionBannerVisible={!!compareSelectFor}
+                banner={
+                  compareSelectFor
+                    ? `Selecting for Cell ${compareSelectFor} - click any cell on the map`
+                    : undefined
+                }
+                onCancel={
+                  compareSelectFor
+                    ? () => {
+                        setCompareSelectFor(null);
+                        setTab("compare");
+                      }
+                    : undefined
+                }
               />
 
               {selectedFeature && !compareSelectFor && (
@@ -242,7 +253,9 @@ function App() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--mfm-bg)]">
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[var(--mfm-border)] border-t-[#0070FF]" />
-            <p className="text-sm text-[var(--mfm-text-2)]">{loading ? "Loading area data…" : "Loading MFMTree…"}</p>
+            <p className="text-sm text-[var(--mfm-text-2)]">
+              {loading ? "Loading area data…" : "Loading MFMTree…"}
+            </p>
           </div>
         </div>
       )}
@@ -252,7 +265,6 @@ function App() {
           MFMTree is designed for desktop. Please use a screen at least 1024px wide.
         </p>
       </div>
-
     </div>
   );
 }

@@ -48,6 +48,7 @@ export type AreasResponse = {
 export type ScenarioResponse = {
   analysis?: string;
   scoresByArea?: Record<string, Partial<BackendArea>>;
+  scores?: Record<string, Partial<BackendArea>>;
   topAreaIds?: string[];
   source?: string;
 };
@@ -82,6 +83,23 @@ export type AreaExplanationResponse = {
   caveat?: string;
   carbonCreditReadiness?: string;
   costEstimate?: CostEstimate;
+};
+
+export type TtsAlignmentSegment = {
+  startMs: number;
+  endMs: number;
+  text: string;
+};
+
+export type TtsResponse = {
+  audioBase64?: string;
+  contentType?: string;
+  mimeType?: string;
+  alignment?: TtsAlignmentSegment[];
+  normalizedText?: string;
+  fallback?: boolean;
+  provider?: string;
+  reason?: string;
 };
 
 export async function getHealth() {
@@ -120,21 +138,26 @@ export async function compareAreas(areaAId: string, areaBId: string): Promise<Co
 }
 
 export async function runScenario(weights: Record<string, number>): Promise<ScenarioResponse> {
-  return request<ScenarioResponse>("/scenario", "POST", { weights });
+  const data = await request<ScenarioResponse>("/scenario", "POST", { weights });
+  return { ...data, scoresByArea: data.scoresByArea || data.scores || {} };
 }
 
 export async function getBudgetPlan(payload: Record<string, unknown>) {
   return request("/budget-plan", "POST", payload);
 }
 
-export async function synthesizeSpeech(text: string): Promise<Blob> {
-  const data = await request<{ audioBase64: string; contentType: string }>("/voice", "POST", { text });
+export async function synthesizeSpeech(text: string): Promise<TtsResponse & { audioBlob?: Blob }> {
+  const data = await request<TtsResponse>("/tts", "POST", { text });
+  if (!data.audioBase64) return data;
   const binary = atob(data.audioBase64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-  return new Blob([bytes], { type: data.contentType || "audio/mpeg" });
+  return {
+    ...data,
+    audioBlob: new Blob([bytes], { type: data.mimeType || data.contentType || "audio/mpeg" }),
+  };
 }
 
 export async function loadBackendCells(): Promise<{ cells: CellFeature[]; source: string; usingDemoData: boolean }> {
@@ -152,10 +175,12 @@ export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<st
   return cells.map((cell) => {
     const areaId = cell.properties.area_id;
     if (!areaId || !scoresByArea[areaId]) return cell;
+    const previous = previousScoreProps(cell.properties);
     return {
       ...cell,
       properties: {
         ...cell.properties,
+        ...previous,
         ...areaToCellScoreProps({ areaId, ...scoresByArea[areaId] }),
       },
     };
@@ -165,10 +190,13 @@ export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<st
 export function frontendWeightsToBackend(weights: { carbon: number; biodiversity: number; livelihood: number; water_soil: number }) {
   return {
     carbon: weights.carbon,
+    treeSurvival: weights.water_soil,
+    carbonCreditReadiness: 0.08,
     biodiversity: weights.biodiversity,
     livelihood: weights.livelihood,
     survival: weights.water_soil,
     costEfficiency: 0.15,
+    risk: 0.08,
     riskPenalty: 0.08,
   };
 }
@@ -250,6 +278,7 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     near_protected_area: String(indicators.protectedAreaConcern || "low").toLowerCase() === "low" ? 0 : 1,
     plant_fit: survival * 100,
     carbon_credit_readiness: area.carbonCreditReadiness,
+    cost_efficiency_score: area.costEfficiencyScore,
     risk_score: area.riskScore,
     risk_flags: area.riskFlags || [],
     evidence: area.evidence || [],
@@ -268,12 +297,25 @@ function areaToCellScoreProps(area: Partial<BackendArea> & { areaId?: string }):
     biodiversity_proxy: numberValue(area.biodiversityScore, undefined),
     livelihood_proxy: numberValue(area.livelihoodScore, undefined),
     water_soil_proxy: numberValue(area.treeSurvivalScore, undefined),
+    cost_efficiency_score: numberValue(area.costEfficiencyScore, undefined),
     eligibility_status: area.carbonCreditReadiness ? `Carbon readiness: ${area.carbonCreditReadiness}` : undefined,
     recommendation: area.recommendedAction,
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_credit_readiness: area.carbonCreditReadiness,
     risk_score: area.riskScore,
     risk_flags: area.riskFlags,
+  };
+}
+
+function previousScoreProps(p: CellProps): Partial<CellProps> {
+  return {
+    previous_priority_score: p.backend_priority_score ?? p.restoration_score,
+    previous_carbon_score: p.carbon_proxy,
+    previous_biodiversity_score: p.biodiversity_proxy,
+    previous_livelihood_score: p.livelihood_proxy,
+    previous_tree_survival_score: p.water_soil_proxy,
+    previous_cost_efficiency_score: p.cost_efficiency_score ?? p.environmental_roi,
+    previous_risk_score: p.risk_score,
   };
 }
 
