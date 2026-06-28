@@ -5,16 +5,15 @@ export type Theme = "light" | "dark";
 const KEY = "mfm-theme";
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>("light");
-
-  useEffect(() => {
+  const [theme, setTheme] = useState<Theme>(() => {
     try {
-      const saved = localStorage.getItem(KEY) as Theme | null;
-      if (saved === "light" || saved === "dark") setTheme(saved);
+      const saved = localStorage.getItem(KEY);
+      if (saved === "light" || saved === "dark") return saved;
     } catch {
       // ignore
     }
-  }, []);
+    return "dark"; // default: satellite basemap
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute("data-mfm-theme", theme);
