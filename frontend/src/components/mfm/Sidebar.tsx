@@ -96,10 +96,10 @@ export function Sidebar({ weights, setWeight, topCells, onSelect, dataSource, us
                     type="range"
                     min={0}
                     max={1}
-                    step={0.01}
+                    step={0.005}
                     value={weights[key]}
                     onChange={(e) => setWeight(key, parseFloat(e.target.value))}
-                    className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--mfm-border)]"
+                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[var(--mfm-border)] transition-colors"
                     style={{ accentColor: "#00A86B" }}
                   />
                 </div>

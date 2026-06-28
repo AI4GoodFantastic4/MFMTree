@@ -80,14 +80,27 @@ def _indicators(area: dict[str, Any]) -> dict[str, Any]:
 
 
 def _carbon_score(indicators: dict[str, Any]) -> float:
+    carbon_gain = _number_or_none(indicators.get("carbonGainPct"))
+    additionality = _number_or_none(indicators.get("restorationAdditionalityPct"))
     tco2e = _number(indicators.get("expectedTCO2ePerHa"), 68)
     plantable = _number(indicators.get("plantableFraction"), 0.5)
     recent_loss = str(indicators.get("recentDeforestationRisk", "unknown")).lower()
     penalty = 0.75 if recent_loss == "high" else 1.0
+    if carbon_gain is not None:
+        additionality_bonus = (additionality or 0) * 0.25
+        return _clamp(carbon_gain * 0.75 + additionality_bonus, 0, 100) * penalty
     return _clamp((tco2e / 90) * 75 + plantable * 25, 0, 100) * penalty
 
 
 def _survival_score(indicators: dict[str, Any]) -> float:
+    restoration_fit = _number_or_none(indicators.get("restorationSystemFitPct"))
+    soil_water_fit = _number_or_none(indicators.get("soilWaterFitPct"))
+    terrain_fit = _number_or_none(indicators.get("terrainFitPct"))
+    if restoration_fit is not None:
+        soil_component = soil_water_fit if soil_water_fit is not None else restoration_fit
+        terrain_component = terrain_fit if terrain_fit is not None else restoration_fit
+        return _clamp(restoration_fit * 0.55 + soil_component * 0.25 + terrain_component * 0.20, 0, 100)
+
     survival = _number(indicators.get("expectedSurvivalRate"), 0.7) * 100
     rainfall_bonus = {"high": 10, "medium": 0, "low": -15}.get(str(indicators.get("rainfallReliability", "")).lower(), -5)
     soil_bonus = {"high": 8, "medium": 0, "low": -12}.get(str(indicators.get("soilSuitability", "")).lower(), -4)
@@ -99,6 +112,13 @@ def _survival_score(indicators: dict[str, Any]) -> float:
 def _cost_efficiency_score(indicators: dict[str, Any]) -> float:
     distance = _number(indicators.get("distanceToRoadKm"), 15)
     slope = _number(indicators.get("meanSlopeDeg"), 12)
+    terrain_fit = _number_or_none(indicators.get("terrainFitPct"))
+    settlement_pressure = _number_or_none(indicators.get("settlementPressurePct"))
+    hard_exclusion = _flag(indicators.get("hardExclusion"))
+    if terrain_fit is not None and indicators.get("distanceToRoadKm") is None:
+        social_pressure_penalty = (settlement_pressure or 0) * 0.25
+        exclusion_penalty = 30 if hard_exclusion else 0
+        return _clamp(terrain_fit - social_pressure_penalty - exclusion_penalty, 0, 100)
     score = 100 - distance * 1.7 - max(0, slope - 5) * 1.8
     return _clamp(score, 0, 100)
 
@@ -112,6 +132,11 @@ def _livelihood_score(indicators: dict[str, Any]) -> float:
 
 
 def _biodiversity_score(indicators: dict[str, Any]) -> float:
+    habitat_gain = _number_or_none(indicators.get("habitatRecoveryGainPct"))
+    open_risk = _number_or_none(indicators.get("openEcosystemConversionRiskPct"))
+    if habitat_gain is not None:
+        return _clamp(habitat_gain - ((open_risk or 0) * 0.25), 0, 100)
+
     plantable = _number(indicators.get("plantableFraction"), 0.5)
     protected = str(indicators.get("protectedAreaConcern", "low")).lower()
     base = 45 + plantable * 35
@@ -124,6 +149,19 @@ def _biodiversity_score(indicators: dict[str, Any]) -> float:
 
 def _risk_score(area: dict[str, Any], indicators: dict[str, Any]) -> float:
     risk = 15.0
+    if _flag(indicators.get("hardExclusion")):
+        risk += 45
+    if _flag(indicators.get("ecologicalReviewRequired")):
+        risk += 18
+    if _flag(indicators.get("socialReviewRequired")):
+        risk += 10
+    if _flag(indicators.get("landHistoryReviewRequired")):
+        risk += 12
+    if _flag(indicators.get("mrvReviewRequired")):
+        risk += 8
+    uncertainty = _number_or_none(indicators.get("remoteSensingUncertaintyPct"))
+    if uncertainty is not None:
+        risk += max(0, uncertainty - 45) * 0.35
     if str(indicators.get("recentDeforestationRisk", "")).lower() == "high":
         risk += 35
     if str(indicators.get("rainfallReliability", "")).lower() == "low":
@@ -140,15 +178,28 @@ def _risk_score(area: dict[str, Any], indicators: dict[str, Any]) -> float:
 
 
 def _carbon_readiness(indicators: dict[str, Any], risk_score: float) -> str:
-    if str(indicators.get("recentDeforestationRisk", "")).lower() == "high" or risk_score >= 60:
+    monitoring = str(indicators.get("monitoringFeasibility", "")).lower()
+    if indicators.get("forestLossRecent") is True or str(indicators.get("recentDeforestationRisk", "")).lower() == "high" or risk_score >= 60:
         return "low"
-    if risk_score >= 35 or str(indicators.get("protectedAreaConcern", "")).lower() in {"partial", "unclear"}:
+    if monitoring == "low":
+        return "low"
+    if risk_score >= 35 or monitoring == "medium" or str(indicators.get("protectedAreaConcern", "")).lower() in {"partial", "unclear"}:
         return "medium"
     return "high"
 
 
 def _risk_flags(area: dict[str, Any], indicators: dict[str, Any]) -> list[str]:
     flags = list(area.get("riskFlags", []))
+    if _flag(indicators.get("hardExclusion")):
+        flags.append("hard exclusion signal in GEE screen")
+    if _flag(indicators.get("ecologicalReviewRequired")):
+        flags.append("ecological safeguard review required")
+    if _flag(indicators.get("socialReviewRequired")):
+        flags.append("social or cropland review required")
+    if _flag(indicators.get("landHistoryReviewRequired")):
+        flags.append("land history review required")
+    if _flag(indicators.get("mrvReviewRequired")):
+        flags.append("MRV/data confidence review required")
     if str(indicators.get("recentDeforestationRisk", "")).lower() == "high":
         flags.append("recent forest loss signal")
     if str(indicators.get("protectedAreaConcern", "")).lower() in {"partial", "unclear", "high"}:
@@ -175,6 +226,10 @@ def _evidence(area: dict[str, Any]) -> list[str]:
         evidence.append(f"{indicators['rainfallReliability']} rainfall reliability")
     if indicators.get("meanSlopeDeg") is not None:
         evidence.append(f"{indicators['meanSlopeDeg']} degree mean slope")
+    if indicators.get("restorationSystemCode"):
+        evidence.append(f"{indicators['restorationSystemCode']} restoration system")
+    if indicators.get("mrvReadinessPct") is not None:
+        evidence.append(f"{round(_number(indicators.get('mrvReadinessPct'), 0))}% MRV readiness proxy")
     return sorted(set(evidence))
 
 
@@ -190,6 +245,22 @@ def _number(value: Any, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _number_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    try:
+        return float(value) > 0
+    except (TypeError, ValueError):
+        return str(value).lower() in {"true", "yes", "y"}
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:

@@ -27,11 +27,12 @@ export function TopBar({ tab, onTab, onExport, theme, onToggleTheme }: Props) {
       <div className="flex items-center gap-3">
         <img
           src="https://www.menschenfuermenschen.de/tcl-uploads/2025/02/MfM-Logo_Blau_Vertical_RGB-_logosvg.svg"
-          alt="Menschen für Menschen"
-          className="h-8 w-8 rounded-md object-contain"
+          alt="Menschen fuer Menschen"
+          className="h-10 w-auto"
         />
+        <span className="h-6 w-px bg-[var(--mfm-border)]" />
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold text-[var(--mfm-text)]">MFMTree</span>
+          <span className="text-sm font-semibold text-[var(--mfm-text)]">RestoreEthopia</span>
           <span className="hidden text-[10px] uppercase tracking-wider text-[var(--mfm-text-2)] md:inline">
             Menschen für Menschen · Reforestation Priority
           </span>

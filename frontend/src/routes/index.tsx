@@ -9,17 +9,16 @@ import { CompareTab } from "@/components/mfm/CompareTab";
 import { useScoring } from "@/hooks/useScoring";
 import { useTheme } from "@/hooks/useTheme";
 
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MFMTree — Reforestation Priority Explorer" },
+      { title: "RestoreEthopia — Reforestation Priority Explorer" },
       {
         name: "description",
         content:
-          "MFMTree helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
+          "RestoreEthopia helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
       },
-      { property: "og:title", content: "MFMTree — Reforestation Priority Explorer" },
+      { property: "og:title", content: "RestoreEthopia — Reforestation Priority Explorer" },
       {
         property: "og:description",
         content:
@@ -39,7 +38,17 @@ export const Route = createFileRoute("/")({
 });
 
 function App() {
-  const { weights, setWeight, setPreset, scored, cells, dataSource, usingDemoData, loading, error } = useScoring();
+  const {
+    weights,
+    setWeight,
+    setPreset,
+    scored,
+    cells,
+    dataSource,
+    usingDemoData,
+    loading,
+    error,
+  } = useScoring();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const [tab, setTab] = useState<TabId>("map");
@@ -142,7 +151,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "mfmtree_cells.csv";
+    a.download = "restoreethopia_cells.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -158,7 +167,13 @@ function App() {
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
-      <TopBar tab={tab} onTab={setTab} onExport={handleExport} theme={theme} onToggleTheme={toggleTheme} />
+      <TopBar
+        tab={tab}
+        onTab={setTab}
+        onExport={handleExport}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
       <div
         className="flex min-h-0 flex-1 overflow-hidden"
@@ -181,24 +196,6 @@ function App() {
               className="relative min-w-0 flex-1 overflow-hidden"
               style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}
             >
-              {compareSelectFor && (
-                <div
-                  className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-2 text-sm font-medium text-white"
-                  style={{ background: "#0070FF" }}
-                >
-                  <span>Selecting for Cell {compareSelectFor} — click any cell on the map</span>
-                  <button
-                    onClick={() => {
-                      setCompareSelectFor(null);
-                      setTab("compare");
-                    }}
-                    className="rounded border border-white/40 px-2 py-0.5 text-xs hover:bg-white/10"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
               <MapView
                 cells={cells}
                 weights={weights}
@@ -206,10 +203,21 @@ function App() {
                 onSelect={handleMapSelect}
                 flyToId={flyToId}
                 theme={theme}
-                onToggleTheme={toggleTheme}
-                onResetView={() => setSelectedId(null)}
-                panelOpen={!!selectedFeature && !compareSelectFor}
-                banner={usingDemoData ? "Data source: demo fallback" : `Data source: ${dataSource}`}
+                isPanelOpen={!!selectedFeature && !compareSelectFor}
+                selectionBannerVisible={!!compareSelectFor}
+                banner={
+                  compareSelectFor
+                    ? `Selecting for Cell ${compareSelectFor} - click any cell on the map`
+                    : undefined
+                }
+                onCancel={
+                  compareSelectFor
+                    ? () => {
+                        setCompareSelectFor(null);
+                        setTab("compare");
+                      }
+                    : undefined
+                }
               />
 
               {selectedFeature && !compareSelectFor && (
@@ -245,17 +253,18 @@ function App() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--mfm-bg)]">
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[var(--mfm-border)] border-t-[#0070FF]" />
-            <p className="text-sm text-[var(--mfm-text-2)]">{loading ? "Loading area data…" : "Loading MFMTree…"}</p>
+            <p className="text-sm text-[var(--mfm-text-2)]">
+              {loading ? "Loading area data…" : "Loading RestoreEthopia…"}
+            </p>
           </div>
         </div>
       )}
 
       <div className="fixed inset-0 z-[60] hidden items-center justify-center bg-[var(--mfm-bg)] p-8 text-center max-[1023px]:flex">
         <p className="text-sm text-[var(--mfm-text)]">
-          MFMTree is designed for desktop. Please use a screen at least 1024px wide.
+          RestoreEthopia is designed for desktop. Please use a screen at least 1024px wide.
         </p>
       </div>
-
     </div>
   );
 }

@@ -48,6 +48,7 @@ export type AreasResponse = {
 export type ScenarioResponse = {
   analysis?: string;
   scoresByArea?: Record<string, Partial<BackendArea>>;
+  scores?: Record<string, Partial<BackendArea>>;
   topAreaIds?: string[];
   source?: string;
 };
@@ -82,6 +83,23 @@ export type AreaExplanationResponse = {
   caveat?: string;
   carbonCreditReadiness?: string;
   costEstimate?: CostEstimate;
+};
+
+export type TtsAlignmentSegment = {
+  startMs: number;
+  endMs: number;
+  text: string;
+};
+
+export type TtsResponse = {
+  audioBase64?: string;
+  contentType?: string;
+  mimeType?: string;
+  alignment?: TtsAlignmentSegment[];
+  normalizedText?: string;
+  fallback?: boolean;
+  provider?: string;
+  reason?: string;
 };
 
 export async function getHealth() {
@@ -120,21 +138,26 @@ export async function compareAreas(areaAId: string, areaBId: string): Promise<Co
 }
 
 export async function runScenario(weights: Record<string, number>): Promise<ScenarioResponse> {
-  return request<ScenarioResponse>("/scenario", "POST", { weights });
+  const data = await request<ScenarioResponse>("/scenario", "POST", { weights });
+  return { ...data, scoresByArea: data.scoresByArea || data.scores || {} };
 }
 
 export async function getBudgetPlan(payload: Record<string, unknown>) {
   return request("/budget-plan", "POST", payload);
 }
 
-export async function synthesizeSpeech(text: string): Promise<Blob> {
-  const data = await request<{ audioBase64: string; contentType: string }>("/voice", "POST", { text });
+export async function synthesizeSpeech(text: string): Promise<TtsResponse & { audioBlob?: Blob }> {
+  const data = await request<TtsResponse>("/tts", "POST", { text });
+  if (!data.audioBase64) return data;
   const binary = atob(data.audioBase64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-  return new Blob([bytes], { type: data.contentType || "audio/mpeg" });
+  return {
+    ...data,
+    audioBlob: new Blob([bytes], { type: data.mimeType || data.contentType || "audio/mpeg" }),
+  };
 }
 
 export async function loadBackendCells(): Promise<{ cells: CellFeature[]; source: string; usingDemoData: boolean }> {
@@ -152,10 +175,12 @@ export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<st
   return cells.map((cell) => {
     const areaId = cell.properties.area_id;
     if (!areaId || !scoresByArea[areaId]) return cell;
+    const previous = previousScoreProps(cell.properties);
     return {
       ...cell,
       properties: {
         ...cell.properties,
+        ...previous,
         ...areaToCellScoreProps({ areaId, ...scoresByArea[areaId] }),
       },
     };
@@ -165,10 +190,13 @@ export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<st
 export function frontendWeightsToBackend(weights: { carbon: number; biodiversity: number; livelihood: number; water_soil: number }) {
   return {
     carbon: weights.carbon,
+    treeSurvival: weights.water_soil,
+    carbonCreditReadiness: 0.08,
     biodiversity: weights.biodiversity,
     livelihood: weights.livelihood,
     survival: weights.water_soil,
     costEfficiency: 0.15,
+    risk: 0.08,
     riskPenalty: 0.08,
   };
 }
@@ -218,6 +246,12 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
   const costPerHa = 450 + numberValue(indicators.distanceToRoadKm, 10) * 18 + slope * 8;
   const targetHa = totalAreaHa * plantableFraction;
   const totalCost = (targetHa * costPerHa) / 1_000_000;
+  const degradationProxy = numberValue(
+    indicators.vegetationTrend,
+    -numberValue(indicators.degradationRecoveryPct, numberValue(indicators.vegetationGainPct, 10)) / 100,
+  );
+  const populationNearby = numberValue(indicators.populationNearby, 9000);
+  const settlementPressure = numberValue(indicators.settlementPressurePct, populationNearby / 300);
 
   return {
     grid_id: areaIdToGridId(area.areaId, index),
@@ -232,7 +266,7 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     livelihood_proxy: numberValue(area.livelihoodScore, 60),
     water_soil_proxy: numberValue(area.treeSurvivalScore, survival * 100),
     current_ndvi: numberValue(indicators.meanNdvi, 0.35),
-    degradation_proxy: Math.abs(numberValue(indicators.vegetationTrend, -0.1)),
+    degradation_proxy: Math.abs(degradationProxy),
     elevation_m: numberValue(indicators.elevationM, 1800),
     annual_rain_mm: rainfall,
     estimated_cost_million_eur: totalCost,
@@ -245,11 +279,18 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_tonnes_per_ha_2010: expectedTco2e,
     slope_deg: slope,
-    population_local_mean_5km: numberValue(indicators.populationNearby, 9000) / 1000,
-    settlement_pressure_1km_pct: numberValue(indicators.populationNearby, 9000) / 300,
+    population_local_mean_5km: populationNearby / 1000,
+    settlement_pressure_1km_pct: settlementPressure,
     near_protected_area: String(indicators.protectedAreaConcern || "low").toLowerCase() === "low" ? 0 : 1,
     plant_fit: survival * 100,
+    restoration_system_code: stringValue(indicators.restorationSystemCode),
+    valid_candidate_10y_cleared_pct: numberValue(indicators.validCandidate10yClearedPct, plantableFraction * 100),
+    mrv_readiness_pct: numberValue(indicators.mrvReadinessPct, undefined),
+    remote_sensing_uncertainty_pct: numberValue(indicators.remoteSensingUncertaintyPct, undefined),
+    hard_exclusion: numberValue(indicators.hardExclusion, 0),
+    ecological_review_required: numberValue(indicators.ecologicalReviewRequired, 0),
     carbon_credit_readiness: area.carbonCreditReadiness,
+    cost_efficiency_score: area.costEfficiencyScore,
     risk_score: area.riskScore,
     risk_flags: area.riskFlags || [],
     evidence: area.evidence || [],
@@ -268,12 +309,25 @@ function areaToCellScoreProps(area: Partial<BackendArea> & { areaId?: string }):
     biodiversity_proxy: numberValue(area.biodiversityScore, undefined),
     livelihood_proxy: numberValue(area.livelihoodScore, undefined),
     water_soil_proxy: numberValue(area.treeSurvivalScore, undefined),
+    cost_efficiency_score: numberValue(area.costEfficiencyScore, undefined),
     eligibility_status: area.carbonCreditReadiness ? `Carbon readiness: ${area.carbonCreditReadiness}` : undefined,
     recommendation: area.recommendedAction,
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_credit_readiness: area.carbonCreditReadiness,
     risk_score: area.riskScore,
     risk_flags: area.riskFlags,
+  };
+}
+
+function previousScoreProps(p: CellProps): Partial<CellProps> {
+  return {
+    previous_priority_score: p.backend_priority_score ?? p.restoration_score,
+    previous_carbon_score: p.carbon_proxy,
+    previous_biodiversity_score: p.biodiversity_proxy,
+    previous_livelihood_score: p.livelihood_proxy,
+    previous_tree_survival_score: p.water_soil_proxy,
+    previous_cost_efficiency_score: p.cost_efficiency_score ?? p.environmental_roi,
+    previous_risk_score: p.risk_score,
   };
 }
 
@@ -307,4 +361,8 @@ function roiClass(score: number): "Green" | "Yellow" | "Red" {
   if (score >= 80) return "Green";
   if (score >= 65) return "Yellow";
   return "Red";
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
