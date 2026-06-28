@@ -3,6 +3,8 @@ import { TreePine } from "lucide-react";
 import {
   type CellFeature,
   degradationLabel,
+  getCellDisplayName,
+  getCellTechnicalName,
   ndviLabel,
   plantsForElevation,
   scoreColor,
@@ -99,7 +101,7 @@ export function CompareTab({ scored, weights, aId, bId, onPickOnMap, onClear }: 
 
   return (
     <div className="h-full overflow-auto bg-[var(--mfm-bg)] p-4">
-      <h2 className="mb-3 text-lg font-semibold text-[var(--mfm-text)]">Compare Cells</h2>
+      <h2 className="mb-3 text-lg font-semibold text-[var(--mfm-text)]">Compare Candidate Areas</h2>
       {!dismissed && (
         <div className="mb-4">
           <AIComparisonAdvisor
@@ -113,13 +115,13 @@ export function CompareTab({ scored, weights, aId, bId, onPickOnMap, onClear }: 
       )}
       <div className="grid grid-cols-2 gap-4">
         <Column
-          label="CELL A"
+          label="AREA A"
           cell={a}
           onPick={() => onPickOnMap("A")}
           onClear={() => onClear("A")}
         />
         <Column
-          label="CELL B"
+          label="AREA B"
           cell={b}
           onPick={() => onPickOnMap("B")}
           onClear={() => onClear("B")}
@@ -327,11 +329,11 @@ function confidenceFromScores(aScore: number, bScore: number) {
 }
 
 function labelForCell(cell: { feature: CellFeature; score: number }) {
-  return (
-    cell.feature.properties.name ||
-    cell.feature.properties.area_id ||
-    `Cell ${cell.feature.properties.grid_id}`
-  );
+  return getCellDisplayName(cell.feature.properties);
+}
+
+function technicalLabelForCell(cell: { feature: CellFeature; score: number }) {
+  return getCellTechnicalName(cell.feature.properties) || cell.feature.properties.area_id || "";
 }
 
 function unique(items: (string | undefined)[]) {
@@ -366,8 +368,8 @@ function Column({
           {label}
         </span>
         {cell && (
-          <span className="flex items-center gap-2 font-mono text-[11px] text-[var(--mfm-text-2)]">
-            #{cell.feature.properties.grid_id}
+          <span className="flex min-w-0 items-center gap-2 text-[11px] text-[var(--mfm-text-2)]">
+            <span className="truncate font-mono">{technicalLabelForCell(cell)}</span>
             <button onClick={onClear} className="text-[#0070FF] hover:underline">
               × Change
             </button>
@@ -378,27 +380,29 @@ function Column({
         onClick={onPick}
         className="mb-3 w-full rounded-md border border-[#0070FF] px-3 py-1.5 text-xs font-semibold text-[#0070FF] transition-colors hover:bg-[#0070FF] hover:text-white"
       >
-        {cell ? "Select a different cell on Map" : "Select on Map"}
+        {cell ? "Select a different area on Map" : "Select on Map"}
       </button>
       {cell ? (
         <CellDetail cell={cell} />
       ) : (
-        <p className="text-sm text-[var(--mfm-text-2)]">No cell selected.</p>
+        <p className="text-sm text-[var(--mfm-text-2)]">No candidate area selected.</p>
       )}
     </div>
   );
 }
 
-function CellDetail({
-  cell,
-}: {
-  cell: { feature: CellFeature; score: number };
-}) {
+function CellDetail({ cell }: { cell: { feature: CellFeature; score: number } }) {
   const p = cell.feature.properties;
   const score = cell.score;
   const plants = plantsForElevation(p.elevation_m);
   return (
     <div>
+      <div className="mb-3">
+        <div className="text-sm font-semibold text-[var(--mfm-text)]">{getCellDisplayName(p)}</div>
+        <div className="mt-0.5 font-mono text-[10px] text-[var(--mfm-text-2)]">
+          {getCellTechnicalName(p)}
+        </div>
+      </div>
       <div className="mb-3">
         <div className="text-3xl font-bold" style={{ color: scoreColor(score) }}>
           {score.toFixed(1)}
@@ -471,7 +475,6 @@ function CellDetail({
           v={`${p.restorable_land_pct.toFixed(1)}% (${Math.round(p.target_project_area_ha).toLocaleString()} ha)`}
         />
         <Row k="Est. cost" v={`€${p.estimated_cost_million_eur.toFixed(2)}M`} />
-        <Row k="ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
       </dl>
       <p className="mt-3 text-xs text-[var(--mfm-text)]">{p.recommendation}</p>
       <div className="mt-3">

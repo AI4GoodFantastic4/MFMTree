@@ -414,7 +414,7 @@ Request:
 
 ```json
 {
-  "text": "HabtamuAI recommends validating Grid cell 4400000059 first..."
+  "text": "HabtamuAI recommends validating Southwest Ethiopia · Candidate Area 08 first..."
 }
 ```
 

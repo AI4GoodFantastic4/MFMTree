@@ -4,6 +4,9 @@ import {
   type CellFeature,
   computeScore,
   degradationLabel,
+  getCellDisplayName,
+  getCellLocationLabel,
+  getCellTechnicalName,
   ndviLabel,
   plantsForElevation,
   scoreColor,
@@ -65,7 +68,7 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
     setCostEstimate(null);
     setApiNote(null);
 
-    const fallbackText = `This area shows ${score >= 55 ? "strong" : score >= 45 ? "moderate" : "limited"} restoration potential with a score of ${score.toFixed(1)}. Carbon potential, ecological suitability, access, and risk still require onsite expert validation before investment.`;
+    const fallbackText = `${getCellDisplayName(p)} shows ${score >= 55 ? "strong" : score >= 45 ? "moderate" : "limited"} restoration potential with a score of ${score.toFixed(1)}. Carbon potential, ecological suitability, access, and risk still require onsite expert validation before investment.`;
 
     async function loadAreaOutputs() {
       if (!p.area_id) {
@@ -105,12 +108,15 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
     <aside className="absolute right-0 top-0 z-20 flex h-full w-[380px] flex-col border-l border-[var(--mfm-border)] bg-[var(--mfm-surface)] shadow-2xl">
       <div className="flex items-start justify-between border-b border-[var(--mfm-border)] p-4">
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[11px] text-[var(--mfm-text-2)]">
-            {p.area_id || `#${p.grid_id}`}
+          <div className="truncate text-sm font-semibold text-[var(--mfm-text)]">
+            {getCellDisplayName(p)}
           </div>
-          {p.name && (
-            <div className="mt-1 truncate text-sm font-semibold text-[var(--mfm-text)]">
-              {p.name}
+          <div className="mt-1 truncate font-mono text-[11px] text-[var(--mfm-text-2)]">
+            {getCellTechnicalName(p) || p.area_id || `#${p.grid_id}`}
+          </div>
+          {getCellLocationLabel(p) && (
+            <div className="mt-1 truncate text-[11px] text-[var(--mfm-text-2)]">
+              {getCellLocationLabel(p)}
             </div>
           )}
           <div className="mt-1 flex items-baseline gap-2">
@@ -275,10 +281,11 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
               />
             )}
             {costEstimate && <Row k="Cost confidence" v={costEstimate.costConfidence} />}
-            <Row k="Environmental ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
             <Row k="Near protected area" v={p.near_protected_area > 0.5 ? "Yes" : "No"} />
             <Row k="Plant suitability" v={`${p.plant_fit.toFixed(0)}%`} />
-            {p.restoration_system_code && <Row k="Restoration system" v={p.restoration_system_code} />}
+            {p.restoration_system_code && (
+              <Row k="Restoration system" v={p.restoration_system_code} />
+            )}
             {p.valid_candidate_10y_cleared_pct !== undefined && (
               <Row k="GEE candidate area" v={`${p.valid_candidate_10y_cleared_pct.toFixed(1)}%`} />
             )}
@@ -288,7 +295,9 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
             {p.remote_sensing_uncertainty_pct !== undefined && (
               <Row k="RS uncertainty" v={`${p.remote_sensing_uncertainty_pct.toFixed(0)}%`} />
             )}
-            {p.hard_exclusion !== undefined && p.hard_exclusion > 0 && <Row k="Hard exclusion" v="Review" />}
+            {p.hard_exclusion !== undefined && p.hard_exclusion > 0 && (
+              <Row k="Hard exclusion" v="Review" />
+            )}
             <Row k="Carbon readiness" v={p.carbon_credit_readiness || "Requires review"} />
           </dl>
         </section>

@@ -40,7 +40,7 @@ def compare_areas(
         {
             "deterministicRecommendation": {
                 "recommendedAreaId": recommended.get("areaId"),
-                "recommendedAreaName": recommended.get("name"),
+                "recommendedAreaName": _area_label(recommended),
                 "reason": "The backend scoring engine selected this area by priority score and risk-adjusted indicators.",
             },
             "area_a": _compact_area(area_a),
@@ -56,6 +56,12 @@ def _compact_area(area: dict[str, Any]) -> dict[str, Any]:
     keys = (
         "areaId",
         "name",
+        "displayName",
+        "technicalName",
+        "regionName",
+        "zoneName",
+        "woredaName",
+        "candidateLabel",
         "region",
         "priorityScore",
         "carbonScore",
@@ -124,6 +130,7 @@ def _base_prompt(task: str, payload: dict[str, Any]) -> str:
             "- Do not claim to issue, certify, or guarantee carbon credits.",
             "- Explain that carbon-credit readiness is only a preliminary signal.",
             "- If a cost estimate is provided, explain the main cost drivers and assumptions that need validation.",
+            "- Use displayName for human-facing area names; keep areaId or technicalName only for traceability.",
             "- Keep output concise and NGO-friendly.",
             "Data:",
             json.dumps(payload, ensure_ascii=True, indent=2),
@@ -175,7 +182,7 @@ def _mock_area_explanation(area: dict[str, Any], cost_estimate: dict[str, Any] |
             f"Main cost drivers: {drivers}."
         )
     return (
-        f"{area['name']} is a pre-screening priority because the scoring engine assigned "
+        f"{_area_label(area)} is a pre-screening priority because the scoring engine assigned "
         f"a priority score of {area['priorityScore']} using the provided indicators. "
         f"Supporting evidence: {evidence}. Key uncertainties: {uncertainties}.{cost_sentence} "
         "This is not final approval; onsite expert validation is required."
@@ -192,7 +199,7 @@ def _mock_field_brief(area: dict[str, Any], cost_estimate: dict[str, Any] | None
             f"{cost_estimate['estimatedCostPerSurvivingTree']} per surviving tree. "
         )
     return (
-        f"Field brief for {area['name']}: {cost_line}"
+        f"Field brief for {_area_label(area)} ({area.get('technicalName') or area.get('areaId')}): {cost_line}"
         "confirm actual plantable hectares, local seedling cost, local labor availability and cost, "
         "road/access constraints, water/rainfall constraints, land tenure, recent deforestation history, "
         "and whether a carbon-credit pathway is realistic. "
@@ -206,8 +213,12 @@ def _mock_comparison(area_a: dict[str, Any], area_b: dict[str, Any]) -> str:
     winner = area_a if area_a["priorityScore"] >= area_b["priorityScore"] else area_b
     other = area_b if winner is area_a else area_a
     return (
-        f"{winner['name']} ranks higher in pre-screening with priority score "
-        f"{winner['priorityScore']} versus {other['priorityScore']} for {other['name']}. "
+        f"{_area_label(winner)} ranks higher in pre-screening with priority score "
+        f"{winner['priorityScore']} versus {other['priorityScore']} for {_area_label(other)}. "
         "Compare the listed evidence and uncertainties before allocating field effort. "
         "This comparison is not final approval; onsite expert validation is required."
     )
+
+
+def _area_label(area: dict[str, Any]) -> str:
+    return str(area.get("displayName") or area.get("name") or area.get("candidateLabel") or area.get("areaId") or "the selected area")

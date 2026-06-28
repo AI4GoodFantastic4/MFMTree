@@ -76,6 +76,7 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
   const audioUrlRef = useRef<string | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const progressStartedAtRef = useRef(0);
+  const preparePromiseRef = useRef<Promise<PreparedSpeech> | null>(null);
   const status = STATUS_COPY[state];
   const effectiveState = isAudioSpeaking ? "speaking" : state;
   const headline = result?.recommendedAreaLabel
@@ -109,16 +110,21 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     let cancelled = false;
     setPreparedSpeech(null);
     setTtsError(null);
+    preparePromiseRef.current = null;
     if (!result?.explanation || !readText) return;
 
     async function prepareVoice() {
       setVoicePreparing(true);
       try {
-        const tts = await synthesizeSpeech(readText);
+        const promise = synthesizeSpeech(readText).then((tts) => {
+          const preparedText = tts.normalizedText || readText;
+          const preparedAlignment = tts.alignment?.length ? tts.alignment : estimateAlignment(preparedText);
+          return { ...tts, preparedText, preparedAlignment };
+        });
+        preparePromiseRef.current = promise;
+        const tts = await promise;
         if (cancelled) return;
-        const preparedText = tts.normalizedText || readText;
-        const preparedAlignment = tts.alignment?.length ? tts.alignment : estimateAlignment(preparedText);
-        setPreparedSpeech({ ...tts, preparedText, preparedAlignment });
+        setPreparedSpeech(tts);
       } catch (error) {
         if (!cancelled) {
           if (import.meta.env.DEV) console.warn("Voice prefetch failed.", error);
@@ -142,16 +148,7 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     setCurrentTimeMs(0);
     setSpokenText(readText);
     try {
-      const tts =
-        preparedSpeech?.preparedText === readText
-          ? preparedSpeech
-          : await synthesizeSpeech(readText).then((fresh) => {
-              const preparedText = fresh.normalizedText || readText;
-              const preparedAlignment = fresh.alignment?.length
-                ? fresh.alignment
-                : estimateAlignment(preparedText);
-              return { ...fresh, preparedText, preparedAlignment };
-            });
+      const tts = await getPreparedSpeech(readText);
       await playPreparedSpeech(tts);
       return;
     } catch (error) {
@@ -163,6 +160,18 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     }
     setVoiceLoading(false);
   };
+
+  async function getPreparedSpeech(text: string): Promise<PreparedSpeech> {
+    if (preparedSpeech?.preparedText === text) return preparedSpeech;
+    if (preparePromiseRef.current) {
+      const pending = await preparePromiseRef.current;
+      if (pending.preparedText === text) return pending;
+    }
+    const fresh = await synthesizeSpeech(text);
+    const preparedText = fresh.normalizedText || text;
+    const preparedAlignment = fresh.alignment?.length ? fresh.alignment : estimateAlignment(preparedText);
+    return { ...fresh, preparedText, preparedAlignment };
+  }
 
   const canReadAloud = Boolean(readText) && (canRead || typeof window !== "undefined");
 
@@ -216,6 +225,8 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     nextAlignment = estimateAlignment(text),
   ) {
     if (!canRead) {
+      startProgressTimer(nextAlignment);
+      setTtsError("Audio playback is unavailable in this browser. Showing spoken-word timing only.");
       setIsAudioSpeaking(false);
       return;
     }

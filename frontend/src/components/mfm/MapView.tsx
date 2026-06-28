@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Home } from "lucide-react";
-import { computeScore, type CellFeature, type Weights } from "@/lib/cells";
+import {
+  computeScore,
+  getCellDisplayName,
+  getCellLocationLabel,
+  getCellTechnicalName,
+  type CellFeature,
+  type Weights,
+} from "@/lib/cells";
 import type { Theme } from "@/hooks/useTheme";
 
 interface Props {
@@ -11,10 +18,12 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   flyToId: number | null;
+  flyToRequest: number;
   theme: Theme;
   compareB?: number | null;
   banner?: string;
   onCancel?: () => void;
+  onResetView?: () => void;
   flyToPadRight?: number;
   isPanelOpen?: boolean;
   selectionBannerVisible?: boolean;
@@ -37,6 +46,9 @@ const INITIAL_BOUNDS: mapboxgl.LngLatBoundsLike = [
 const CAMERA_3D = { pitch: 45, bearing: -10 };
 const CAMERA_2D = { pitch: 0, bearing: 0 };
 const TERRAIN_SOURCE_ID = "mapbox-dem";
+// Keep custom map toggles immediately left of the native Mapbox nav control.
+const NAV_CTRL_RIGHT_OFFSET = 50;
+const PANEL_WIDTH = 380;
 
 function buildGeoJSON(cells: CellFeature[], weights: Weights) {
   return {
@@ -47,7 +59,9 @@ function buildGeoJSON(cells: CellFeature[], weights: Weights) {
       properties: {
         id: f.properties.grid_id,
         areaId: f.properties.area_id,
-        name: f.properties.name,
+        name: getCellDisplayName(f.properties),
+        technicalName: getCellTechnicalName(f.properties),
+        locationLabel: getCellLocationLabel(f.properties),
         computed_score: computeScore(f.properties, weights),
         eligibility_status: f.properties.eligibility_status,
       },
@@ -61,10 +75,12 @@ export function MapView({
   selectedId,
   onSelect,
   flyToId,
+  flyToRequest,
   theme,
   compareB = null,
   banner,
   onCancel,
+  onResetView,
   flyToPadRight = 400,
   isPanelOpen = false,
   selectionBannerVisible = false,
@@ -83,6 +99,8 @@ export function MapView({
   const flyToIdRef = useRef(flyToId);
   const flyToPadRightRef = useRef(flyToPadRight);
   const resetCameraTimeoutRef = useRef<number | null>(null);
+  const focusRetryTimeoutRef = useRef<number | null>(null);
+  const pendingFocusIdRef = useRef<number | null>(flyToId);
   const [mode, setMode] = useState<"2D" | "3D">("3D");
   const [styleOverride, setStyleOverride] = useState<StyleKey | null>(null);
   const [tokenBad, setTokenBad] = useState(false);
@@ -97,25 +115,58 @@ export function MapView({
   flyToIdRef.current = flyToId;
   flyToPadRightRef.current = flyToPadRight;
 
-  const flyToCell = useCallback((id: number) => {
+  const focusCell = useCallback((id: number, attempt = 0) => {
+    pendingFocusIdRef.current = id;
     const m = mapRef.current;
-    if (!m || !loadedRef.current) return;
+    if (!m || !loadedRef.current) {
+      if (attempt < 20) {
+        if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
+        focusRetryTimeoutRef.current = window.setTimeout(() => focusCell(id, attempt + 1), 100);
+      }
+      return;
+    }
     const f = cellsRef.current.find((cell) => cell.properties.grid_id === id);
-    if (!f) return;
+    if (!f) {
+      if (attempt < 20) {
+        if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
+        focusRetryTimeoutRef.current = window.setTimeout(() => focusCell(id, attempt + 1), 100);
+      }
+      return;
+    }
+    if (focusRetryTimeoutRef.current) {
+      window.clearTimeout(focusRetryTimeoutRef.current);
+      focusRetryTimeoutRef.current = null;
+    }
     const ring = f.geometry.coordinates[0];
+    const bounds = new mapboxgl.LngLatBounds();
     let x = 0;
     let y = 0;
     for (const [lng, lat] of ring) {
       x += lng;
       y += lat;
+      bounds.extend([lng, lat]);
     }
-    m.flyTo({
-      center: [x / ring.length, y / ring.length],
-      zoom: 10,
-      ...CAMERA_3D,
+    const center: mapboxgl.LngLatLike = [x / ring.length, y / ring.length];
+    if (m.getLayer("cells-selected")) {
+      m.setFilter("cells-selected", ["==", ["get", "id"], id]);
+    }
+    m.resize();
+    m.fitBounds(bounds.isEmpty() ? new mapboxgl.LngLatBounds(center, center) : bounds, {
+      maxZoom: 10,
       duration: 1200,
       padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
+      ...CAMERA_3D,
     });
+    window.setTimeout(() => {
+      if (pendingFocusIdRef.current !== id || mapRef.current !== m) return;
+      m.flyTo({
+        center,
+        zoom: 10,
+        duration: 900,
+        padding: { top: 40, bottom: 40, left: 40, right: flyToPadRightRef.current },
+        ...CAMERA_3D,
+      });
+    }, 150);
   }, []);
 
   const applyCameraMode = useCallback((m: mapboxgl.Map, nextMode: "2D" | "3D", duration = 0) => {
@@ -297,6 +348,8 @@ export function MapView({
         eligibility_status: string;
         areaId?: string;
         name?: string;
+        technicalName?: string;
+        locationLabel?: string;
       };
       if (!popupRef.current) {
         popupRef.current = new mapboxgl.Popup({
@@ -309,7 +362,7 @@ export function MapView({
       popupRef.current
         .setLngLat(ev.lngLat)
         .setHTML(
-          `<div style="font-family:Inter;font-size:12px;color:#f0f4ff;background:#0d1424;padding:6px 8px;border:1px solid #1e2d50;border-radius:6px"><div style="font-weight:600">${props.name || props.areaId || "Area"}</div><div>Score ${props.computed_score.toFixed(1)}</div><div style="color:#8b9cc8;font-size:11px">${props.eligibility_status}</div></div>`,
+          `<div style="font-family:Inter;font-size:12px;color:#f0f4ff;background:#0d1424;padding:6px 8px;border:1px solid #1e2d50;border-radius:6px"><div style="font-weight:600">${props.name || props.areaId || "Area"}</div><div style="color:#8b9cc8;font-size:11px">${props.technicalName || props.locationLabel || ""}</div><div>Score ${props.computed_score.toFixed(1)}</div><div style="color:#8b9cc8;font-size:11px">${props.eligibility_status}</div></div>`,
         )
         .addTo(m);
     };
@@ -335,6 +388,10 @@ export function MapView({
     });
 
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    const ctrlTopRight = containerRef.current.querySelector(
+      ".mapboxgl-ctrl-top-right",
+    ) as HTMLElement | null;
+    if (ctrlTopRight) ctrlTopRight.style.transition = "right 300ms ease";
 
     map.on("error", (e) => {
       if (e?.error?.message?.toLowerCase().includes("unauthorized")) setTokenBad(true);
@@ -346,7 +403,7 @@ export function MapView({
       requestAnimationFrame(() => {
         map.resize();
         if (flyToIdRef.current != null) {
-          flyToCell(flyToIdRef.current);
+          focusCell(flyToIdRef.current);
         } else {
           resetView(0);
         }
@@ -361,6 +418,7 @@ export function MapView({
 
     return () => {
       if (resetCameraTimeoutRef.current) window.clearTimeout(resetCameraTimeoutRef.current);
+      if (focusRetryTimeoutRef.current) window.clearTimeout(focusRetryTimeoutRef.current);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -377,9 +435,17 @@ export function MapView({
     m.once("style.load", () => {
       setupLayers(m);
       enforceCameraMode(m, modeRef.current);
+      if (pendingFocusIdRef.current != null) focusCell(pendingFocusIdRef.current);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStyle]);
+
+  // Slide the native Mapbox nav control with the detail panel so the map controls remain aligned.
+  useEffect(() => {
+    const el = containerRef.current?.querySelector(".mapboxgl-ctrl-top-right") as HTMLElement | null;
+    if (!el) return;
+    el.style.right = isPanelOpen ? `${PANEL_WIDTH}px` : "0";
+  }, [isPanelOpen]);
 
   // update scores/materials without rebuilding or refetching geometry
   useEffect(() => {
@@ -420,8 +486,9 @@ export function MapView({
   // flyTo — pad right side so the detail panel doesn't cover the target
   useEffect(() => {
     if (flyToId == null) return;
-    flyToCell(flyToId);
-  }, [flyToId, flyToPadRight, flyToCell]);
+    pendingFocusIdRef.current = flyToId;
+    focusCell(flyToId);
+  }, [flyToId, flyToPadRight, flyToRequest, focusCell]);
 
   return (
     <div
@@ -468,8 +535,8 @@ export function MapView({
       <div
         className="absolute z-40 flex flex-col items-end gap-1.5 transition-all"
         style={{
-          top: selectionBannerVisible ? "64px" : "16px",
-          right: isPanelOpen ? "396px" : "16px",
+          top: selectionBannerVisible ? "64px" : "10px",
+          right: NAV_CTRL_RIGHT_OFFSET + (isPanelOpen ? PANEL_WIDTH : 0),
         }}
       >
         <div className="flex rounded-md bg-white/95 p-0.5 shadow">
@@ -518,7 +585,10 @@ export function MapView({
       </div>
       <div className="absolute bottom-12 left-4 z-30 flex flex-col gap-1.5">
         <button
-          onClick={() => resetView()}
+          onClick={() => {
+            resetView();
+            onResetView?.();
+          }}
           className="flex items-center justify-center gap-1 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-[#374151] shadow transition-colors hover:bg-white"
         >
           <Home size={12} strokeWidth={1.5} />

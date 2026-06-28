@@ -33,9 +33,13 @@ def generate_voice_audio(text: str) -> dict[str, Any]:
     api_key = _elevenlabs_api_key()
     voice_name = os.environ.get("ELEVENLABS_VOICE_NAME", DEFAULT_VOICE_NAME)
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or _resolve_voice_id(api_key, voice_name)
-    try:
-        audio, alignment = _post_audio_with_timestamps(api_key, voice_id, cleaned)
-    except VoiceGenerationError:
+    if _timestamps_enabled():
+        try:
+            audio, alignment = _post_audio_with_timestamps(api_key, voice_id, cleaned)
+        except VoiceGenerationError:
+            audio = _post_audio(api_key, voice_id, cleaned)
+            alignment = _estimated_alignment(cleaned)
+    else:
         audio = _post_audio(api_key, voice_id, cleaned)
         alignment = _estimated_alignment(cleaned)
 
@@ -49,6 +53,10 @@ def generate_voice_audio(text: str) -> dict[str, Any]:
         "normalizedText": cleaned,
         "fallback": False,
     }
+
+
+def _timestamps_enabled() -> bool:
+    return os.environ.get("ELEVENLABS_TIMESTAMPS_ENABLED", "false").lower() == "true"
 
 
 def generate_voice_fallback(text: str, reason: str = "unavailable") -> dict[str, Any]:

@@ -5,7 +5,14 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, ""
 export type BackendArea = {
   areaId: string;
   name?: string;
+  displayName?: string;
+  technicalName?: string;
   region?: string;
+  regionName?: string;
+  zoneName?: string;
+  woredaName?: string;
+  adminLevel?: string;
+  candidateLabel?: string;
   priorityScore?: number;
   carbonScore?: number;
   treeSurvivalScore?: number;
@@ -35,7 +42,19 @@ export type CostEstimate = {
 
 export type GeoJsonFeature = {
   type: "Feature";
-  properties: { areaId?: string; name?: string; region?: string; [key: string]: unknown };
+  properties: {
+    areaId?: string;
+    name?: string;
+    displayName?: string;
+    technicalName?: string;
+    region?: string;
+    regionName?: string;
+    zoneName?: string;
+    woredaName?: string;
+    adminLevel?: string;
+    candidateLabel?: string;
+    [key: string]: unknown;
+  };
   geometry: { type: "Polygon" | "MultiPolygon"; coordinates: unknown };
 };
 
@@ -160,7 +179,11 @@ export async function synthesizeSpeech(text: string): Promise<TtsResponse & { au
   };
 }
 
-export async function loadBackendCells(): Promise<{ cells: CellFeature[]; source: string; usingDemoData: boolean }> {
+export async function loadBackendCells(): Promise<{
+  cells: CellFeature[];
+  source: string;
+  usingDemoData: boolean;
+}> {
   if (!API_BASE_URL) {
     return { cells: CELLS, source: "local demo", usingDemoData: true };
   }
@@ -171,7 +194,10 @@ export async function loadBackendCells(): Promise<{ cells: CellFeature[]; source
   return { cells, source: areasPayload.source || "api", usingDemoData: false };
 }
 
-export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<string, Partial<BackendArea>>): CellFeature[] {
+export function mergeBackendScores(
+  cells: CellFeature[],
+  scoresByArea: Record<string, Partial<BackendArea>>,
+): CellFeature[] {
   return cells.map((cell) => {
     const areaId = cell.properties.area_id;
     if (!areaId || !scoresByArea[areaId]) return cell;
@@ -187,7 +213,12 @@ export function mergeBackendScores(cells: CellFeature[], scoresByArea: Record<st
   });
 }
 
-export function frontendWeightsToBackend(weights: { carbon: number; biodiversity: number; livelihood: number; water_soil: number }) {
+export function frontendWeightsToBackend(weights: {
+  carbon: number;
+  biodiversity: number;
+  livelihood: number;
+  water_soil: number;
+}) {
   return {
     carbon: weights.carbon,
     treeSurvival: weights.water_soil,
@@ -212,15 +243,31 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   return (await response.json()) as T;
 }
 
-function backendAreasToCells(payload: AreasResponse, scoresByArea: Record<string, Partial<BackendArea>>): CellFeature[] {
-  const areasById = new Map(payload.areas.map((area) => [area.areaId, { ...area, ...(scoresByArea[area.areaId] || {}) }]));
+function backendAreasToCells(
+  payload: AreasResponse,
+  scoresByArea: Record<string, Partial<BackendArea>>,
+): CellFeature[] {
+  const areasById = new Map(
+    payload.areas.map((area) => [area.areaId, { ...area, ...(scoresByArea[area.areaId] || {}) }]),
+  );
   const features = payload.geojson?.features || [];
 
   return features
     .map((feature, index) => {
       const areaId = feature.properties.areaId;
       if (!areaId) return null;
-      const area = areasById.get(areaId) || { areaId, name: feature.properties.name, region: feature.properties.region };
+      const area = areasById.get(areaId) || {
+        areaId,
+        name: feature.properties.name,
+        displayName: feature.properties.displayName,
+        technicalName: feature.properties.technicalName,
+        region: feature.properties.region,
+        regionName: feature.properties.regionName,
+        zoneName: feature.properties.zoneName,
+        woredaName: feature.properties.woredaName,
+        adminLevel: feature.properties.adminLevel,
+        candidateLabel: feature.properties.candidateLabel,
+      };
       const polygon = normalizePolygon(feature.geometry.coordinates);
       if (!polygon) return null;
       return {
@@ -248,7 +295,8 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
   const totalCost = (targetHa * costPerHa) / 1_000_000;
   const degradationProxy = numberValue(
     indicators.vegetationTrend,
-    -numberValue(indicators.degradationRecoveryPct, numberValue(indicators.vegetationGainPct, 10)) / 100,
+    -numberValue(indicators.degradationRecoveryPct, numberValue(indicators.vegetationGainPct, 10)) /
+      100,
   );
   const populationNearby = numberValue(indicators.populationNearby, 9000);
   const settlementPressure = numberValue(indicators.settlementPressurePct, populationNearby / 300);
@@ -256,8 +304,15 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
   return {
     grid_id: areaIdToGridId(area.areaId, index),
     area_id: area.areaId,
-    name: area.name || area.areaId,
-    region: area.region || "Ethiopia",
+    name: area.displayName || area.name || area.areaId,
+    displayName: area.displayName || area.name,
+    technicalName: area.technicalName,
+    region: area.regionName || area.region || "Ethiopia",
+    regionName: area.regionName || area.region,
+    zoneName: area.zoneName,
+    woredaName: area.woredaName,
+    adminLevel: area.adminLevel,
+    candidateLabel: area.candidateLabel,
     restoration_score: numberValue(area.priorityScore, 50),
     roi_class: roiClass(numberValue(area.priorityScore, 50)),
     priority_category: area.recommendedAction || "Candidate for expert validation",
@@ -270,21 +325,28 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
     elevation_m: numberValue(indicators.elevationM, 1800),
     annual_rain_mm: rainfall,
     estimated_cost_million_eur: totalCost,
-    environmental_roi: totalCost > 0 ? (targetHa * expectedTco2e * survival) / (totalCost * 1_000_000) : 0,
+    environmental_roi:
+      totalCost > 0 ? (targetHa * expectedTco2e * survival) / (totalCost * 1_000_000) : 0,
     restorable_land_pct: plantableFraction * 100,
     target_project_area_ha: targetHa,
     area_ha: totalAreaHa,
-    eligibility_status: area.carbonCreditReadiness ? `Carbon readiness: ${area.carbonCreditReadiness}` : "Expert validation required",
+    eligibility_status: area.carbonCreditReadiness
+      ? `Carbon readiness: ${area.carbonCreditReadiness}`
+      : "Expert validation required",
     recommendation: area.recommendedAction || "Candidate for expert validation",
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_tonnes_per_ha_2010: expectedTco2e,
     slope_deg: slope,
     population_local_mean_5km: populationNearby / 1000,
     settlement_pressure_1km_pct: settlementPressure,
-    near_protected_area: String(indicators.protectedAreaConcern || "low").toLowerCase() === "low" ? 0 : 1,
+    near_protected_area:
+      String(indicators.protectedAreaConcern || "low").toLowerCase() === "low" ? 0 : 1,
     plant_fit: survival * 100,
     restoration_system_code: stringValue(indicators.restorationSystemCode),
-    valid_candidate_10y_cleared_pct: numberValue(indicators.validCandidate10yClearedPct, plantableFraction * 100),
+    valid_candidate_10y_cleared_pct: numberValue(
+      indicators.validCandidate10yClearedPct,
+      plantableFraction * 100,
+    ),
     mrv_readiness_pct: numberValue(indicators.mrvReadinessPct, undefined),
     remote_sensing_uncertainty_pct: numberValue(indicators.remoteSensingUncertaintyPct, undefined),
     hard_exclusion: numberValue(indicators.hardExclusion, 0),
@@ -298,9 +360,20 @@ function defaultCellProps(area: BackendArea, index: number): CellProps {
   };
 }
 
-function areaToCellScoreProps(area: Partial<BackendArea> & { areaId?: string }): Partial<CellProps> {
+function areaToCellScoreProps(
+  area: Partial<BackendArea> & { areaId?: string },
+): Partial<CellProps> {
   const priority = numberValue(area.priorityScore, undefined);
-  return {
+  return omitUndefined({
+    name: area.displayName || area.name,
+    displayName: area.displayName,
+    technicalName: area.technicalName,
+    region: area.regionName || area.region,
+    regionName: area.regionName,
+    zoneName: area.zoneName,
+    woredaName: area.woredaName,
+    adminLevel: area.adminLevel,
+    candidateLabel: area.candidateLabel,
     backend_priority_score: priority,
     restoration_score: priority ?? undefined,
     roi_class: priority === undefined ? undefined : roiClass(priority),
@@ -310,13 +383,15 @@ function areaToCellScoreProps(area: Partial<BackendArea> & { areaId?: string }):
     livelihood_proxy: numberValue(area.livelihoodScore, undefined),
     water_soil_proxy: numberValue(area.treeSurvivalScore, undefined),
     cost_efficiency_score: numberValue(area.costEfficiencyScore, undefined),
-    eligibility_status: area.carbonCreditReadiness ? `Carbon readiness: ${area.carbonCreditReadiness}` : undefined,
+    eligibility_status: area.carbonCreditReadiness
+      ? `Carbon readiness: ${area.carbonCreditReadiness}`
+      : undefined,
     recommendation: area.recommendedAction,
     candidate_ok: area.riskScore && area.riskScore > 60 ? 0 : 1,
     carbon_credit_readiness: area.carbonCreditReadiness,
     risk_score: area.riskScore,
     risk_flags: area.riskFlags,
-  };
+  });
 }
 
 function previousScoreProps(p: CellProps): Partial<CellProps> {
@@ -365,4 +440,10 @@ function roiClass(score: number): "Green" | "Yellow" | "Red" {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined),
+  ) as Partial<T>;
 }

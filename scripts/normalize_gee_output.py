@@ -148,15 +148,23 @@ def normalize_feature_collection(payload: dict[str, Any]) -> tuple[dict[str, Any
         if not area_id:
             raise ValueError(f"Feature {index} is missing areaId/id/grid_id.")
 
-        name = props.get("name") or f"Grid cell {props.get('grid_id', area_id)}"
-        region = props.get("region") or props.get("country") or "Ethiopia"
+        identity = area_identity(props, geometry, index, area_id)
         geometry_properties = {
             "areaId": area_id,
-            "name": str(name),
-            "region": str(region),
+            "name": identity["displayName"],
+            "displayName": identity["displayName"],
+            "technicalName": identity["technicalName"],
+            "region": identity["regionName"],
+            "regionName": identity["regionName"],
+            "candidateLabel": identity["candidateLabel"],
+            "adminLevel": identity["adminLevel"],
             "grid_id": props.get("grid_id"),
             "restoration_system_code": props.get("restoration_system_code"),
         }
+        if identity.get("zoneName"):
+            geometry_properties["zoneName"] = identity["zoneName"]
+        if identity.get("woredaName"):
+            geometry_properties["woredaName"] = identity["woredaName"]
         normalized_indicators = normalize_indicators(props, area_id)
         geometry_features.append(
             {
@@ -191,6 +199,114 @@ def stable_area_id(props: dict[str, Any]) -> str | None:
     if props.get("grid_id") is not None:
         return f"ET-GRID-{props['grid_id']}"
     return None
+
+
+def area_identity(props: dict[str, Any], geometry: dict[str, Any], index: int, area_id: str) -> dict[str, str | None]:
+    original_name = text(props.get("name"))
+    technical_name = text(props.get("technicalName") or props.get("technical_name"))
+    if not technical_name:
+        technical_name = original_name if original_name and is_technical_name(original_name) else None
+    if not technical_name:
+        technical_name = f"Grid cell {props['grid_id']}" if props.get("grid_id") is not None else area_id
+
+    candidate_label = text(props.get("candidateLabel") or props.get("candidate_label")) or f"Candidate Area {index:02d}"
+    region_name, admin_level = region_name_for(props, geometry)
+    zone_name = first_text(props, "zoneName", "zone_name", "admin2Name", "admin2_name", "ADM2_EN", "adm2_en", "zone")
+    woreda_name = first_text(props, "woredaName", "woreda_name", "admin3Name", "admin3_name", "ADM3_EN", "adm3_en", "woreda")
+
+    display_name = first_text(props, "displayName", "display_name")
+    if not display_name:
+        if original_name and not is_technical_name(original_name):
+            display_name = original_name
+        else:
+            parts = [part for part in (region_name, zone_name, candidate_label) if part]
+            display_name = " · ".join(parts) if parts else candidate_label
+
+    return {
+        "displayName": display_name,
+        "technicalName": technical_name,
+        "regionName": region_name or "Ethiopia",
+        "zoneName": zone_name,
+        "woredaName": woreda_name,
+        "candidateLabel": candidate_label,
+        "adminLevel": admin_level,
+    }
+
+
+def region_name_for(props: dict[str, Any], geometry: dict[str, Any]) -> tuple[str | None, str]:
+    explicit = first_text(props, "regionName", "region_name", "admin1Name", "admin1_name", "ADM1_EN", "adm1_en", "state")
+    if explicit:
+        return explicit, "region"
+    region = text(props.get("region"))
+    if region and region.lower() not in {"ethiopia", "et"}:
+        return region, "region"
+    inferred = broad_region_from_geometry(geometry)
+    if inferred:
+        return inferred, "geographic-fallback"
+    return region or "Ethiopia", "country"
+
+
+def broad_region_from_geometry(geometry: dict[str, Any]) -> str | None:
+    centroid = geometry_centroid(geometry)
+    if centroid is None:
+        return None
+    lng, lat = centroid
+    if lat >= 11:
+        return "Northern Ethiopia"
+    if lng < 37.5 and lat < 9.5:
+        return "Southwest Ethiopia"
+    if lng < 38.7:
+        return "Western Ethiopia"
+    if lng >= 41:
+        return "Eastern Ethiopia"
+    if lat < 7.5:
+        return "Southern Ethiopia"
+    return "Central Ethiopia"
+
+
+def geometry_centroid(geometry: dict[str, Any]) -> tuple[float, float] | None:
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, list):
+        return None
+    if geometry.get("type") == "MultiPolygon" and coordinates:
+        polygon = coordinates[0]
+        if not isinstance(polygon, list) or not polygon:
+            return None
+        ring = polygon[0]
+    elif geometry.get("type") == "Polygon" and coordinates:
+        ring = coordinates[0]
+    else:
+        return None
+    points = [point for point in ring if isinstance(point, list) and len(point) >= 2]
+    if not points:
+        return None
+    return (
+        sum(float(point[0]) for point in points) / len(points),
+        sum(float(point[1]) for point in points) / len(points),
+    )
+
+
+def first_text(props: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = text(props.get(key))
+        if value:
+            return value
+    return None
+
+
+def text(value: Any) -> str | None:
+    if value is None:
+        return None
+    result = str(value).strip()
+    return result or None
+
+
+def is_technical_name(name: str) -> bool:
+    value = name.strip().lower()
+    if value.startswith(("grid cell", "grid_", "et-grid-", "#")):
+        return True
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return bool(digits) and len(digits) >= 6 and value.replace("-", "").replace("_", "").replace(" ", "").isalnum()
 
 
 def normalize_indicators(props: dict[str, Any], area_id: str) -> dict[str, Any]:

@@ -8,13 +8,15 @@
       "provider": "HDX/OCHA",
       "geeAssetId": "users/YOUR_USERNAME/eth_adm1_ocha_hdx",
       "s3Key": "sources/admin/ethiopia_admin_boundaries.geojson",
+      "publishedS3Key": "sources/admin/ethiopia_admin3.geojson",
       "category": "administrative_boundaries",
-      "status": "placeholder_external",
+      "status": "integrated",
       "usedFor": [
         "area geometry",
-        "aggregation by woreda/zone/region"
+        "aggregation by woreda/zone/region",
+        "displayName, regionName, zoneName, woredaName enrichment"
       ],
-      "notes": "Original Code Editor script expected this as a user-provided GEE asset. Replace with the actual uploaded asset or S3 source key.",
+      "notes": "Admin 3 boundaries are joined after the GEE export by scripts/enrich_admin_boundaries.py. The default source is the public ICPAC GeoServer; audited HDX/OCHA COD-AB runs can pass ADMIN_BOUNDARIES_PATH.",
       "schemaVersion": "0.2.0",
       "geeScriptReference": "services/gee-processor/references/restoreai_gee_data_only_message.js",
       "scriptSection": "2. AOI",

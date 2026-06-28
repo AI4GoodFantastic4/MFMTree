@@ -225,8 +225,8 @@ def _handle_compare_areas(event: dict[str, Any]) -> dict[str, Any]:
         {
             "areaIds": [scored_a["areaId"], scored_b["areaId"]],
             "recommendedAreaId": recommended["areaId"],
-            "recommendedAreaName": recommended["name"],
-            "recommendation": f"Validate {recommended['name']} first for field review.",
+            "recommendedAreaName": _area_label(recommended),
+            "recommendation": f"Validate {_area_label(recommended)} first for field review.",
             "confidence": confidence,
             "summary": narrative_summary,
             "keyTradeoffs": key_tradeoffs,
@@ -243,34 +243,8 @@ def _handle_compare_areas(event: dict[str, Any]) -> dict[str, Any]:
                 scored_b["areaId"]: cost_b,
             },
             "scoresByArea": {
-                scored_a["areaId"]: {
-                    key: scored_a[key]
-                    for key in (
-                        "areaId",
-                        "priorityScore",
-                        "carbonScore",
-                        "treeSurvivalScore",
-                        "costEfficiencyScore",
-                        "carbonCreditReadiness",
-                        "riskScore",
-                        "riskFlags",
-                        "recommendedAction",
-                    )
-                },
-                scored_b["areaId"]: {
-                    key: scored_b[key]
-                    for key in (
-                        "areaId",
-                        "priorityScore",
-                        "carbonScore",
-                        "treeSurvivalScore",
-                        "costEfficiencyScore",
-                        "carbonCreditReadiness",
-                        "riskScore",
-                        "riskFlags",
-                        "recommendedAction",
-                    )
-                },
+                scored_a["areaId"]: _comparison_score_payload(scored_a),
+                scored_b["areaId"]: _comparison_score_payload(scored_b),
             },
             "analysis": narrative_summary,
         },
@@ -286,6 +260,28 @@ def _comparison_confidence(score_a: float, score_b: float) -> str:
     return "low"
 
 
+def _comparison_score_payload(area: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "areaId",
+        "name",
+        "displayName",
+        "technicalName",
+        "regionName",
+        "zoneName",
+        "woredaName",
+        "candidateLabel",
+        "priorityScore",
+        "carbonScore",
+        "treeSurvivalScore",
+        "costEfficiencyScore",
+        "carbonCreditReadiness",
+        "riskScore",
+        "riskFlags",
+        "recommendedAction",
+    )
+    return {key: area.get(key) for key in keys if area.get(key) is not None}
+
+
 def _area_explanation_payload(
     area: dict[str, Any],
     cost_estimate: dict[str, Any],
@@ -293,6 +289,13 @@ def _area_explanation_payload(
 ) -> dict[str, Any]:
     return {
         "areaId": area.get("areaId"),
+        "name": _area_label(area),
+        "displayName": area.get("displayName") or area.get("name"),
+        "technicalName": area.get("technicalName"),
+        "regionName": area.get("regionName") or area.get("region"),
+        "zoneName": area.get("zoneName"),
+        "woredaName": area.get("woredaName"),
+        "candidateLabel": area.get("candidateLabel"),
         "summary": explanation,
         "explanation": explanation,
         "recommendation": area.get("recommendedAction"),
@@ -322,7 +325,7 @@ def _higher_score_tradeoff(label: str, area_a: dict[str, Any], area_b: dict[str,
         return f"{label.capitalize()} is broadly similar between both areas."
     winner = area_a if a_value >= b_value else area_b
     loser = area_b if winner is area_a else area_a
-    return f"{winner['name']} has stronger {label} than {loser['name']} ({round(max(a_value, b_value))} vs {round(min(a_value, b_value))})."
+    return f"{_area_label(winner)} has stronger {label} than {_area_label(loser)} ({round(max(a_value, b_value))} vs {round(min(a_value, b_value))})."
 
 
 def _lower_score_tradeoff(label: str, area_a: dict[str, Any], area_b: dict[str, Any], key: str) -> str:
@@ -332,7 +335,11 @@ def _lower_score_tradeoff(label: str, area_a: dict[str, Any], area_b: dict[str, 
         return f"{label.capitalize()} is broadly similar between both areas."
     winner = area_a if a_value <= b_value else area_b
     loser = area_b if winner is area_a else area_a
-    return f"{winner['name']} has the lower {label} signal than {loser['name']} ({round(min(a_value, b_value))} vs {round(max(a_value, b_value))})."
+    return f"{_area_label(winner)} has the lower {label} signal than {_area_label(loser)} ({round(min(a_value, b_value))} vs {round(max(a_value, b_value))})."
+
+
+def _area_label(area: dict[str, Any]) -> str:
+    return str(area.get("displayName") or area.get("name") or area.get("candidateLabel") or area.get("areaId") or "the selected area")
 
 
 def _comparison_field_questions() -> list[str]:

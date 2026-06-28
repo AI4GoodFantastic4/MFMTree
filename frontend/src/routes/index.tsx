@@ -38,22 +38,14 @@ export const Route = createFileRoute("/")({
 });
 
 function App() {
-  const {
-    weights,
-    setWeight,
-    setPreset,
-    scored,
-    cells,
-    dataSource,
-    usingDemoData,
-    loading,
-    error,
-  } = useScoring();
+  const { weights, setWeight, setPreset, scored, cells, usingDemoData, loading, error } =
+    useScoring();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const [tab, setTab] = useState<TabId>("map");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [flyToId, setFlyToId] = useState<number | null>(null);
+  const [flyToRequest, setFlyToRequest] = useState(0);
   const [booting, setBooting] = useState(true);
   const [compareA, setCompareA] = useState<number | null>(null);
   const [compareB, setCompareB] = useState<number | null>(null);
@@ -71,8 +63,12 @@ function App() {
 
   const select = (id: number) => {
     setSelectedId(id);
-    setFlyToId(id);
     setTab("map");
+    setFlyToId(null);
+    window.setTimeout(() => {
+      setFlyToId(id);
+      setFlyToRequest((request) => request + 1);
+    }, 50);
   };
 
   const handleMapSelect = (id: number) => {
@@ -111,7 +107,6 @@ function App() {
       "target_project_area_ha",
       "restorable_land_pct",
       "estimated_cost_million_eur",
-      "environmental_roi",
       "carbon_tonnes_per_ha_2010",
       "near_protected_area",
       "plant_fit",
@@ -138,7 +133,6 @@ function App() {
         p.target_project_area_ha,
         p.restorable_land_pct,
         p.estimated_cost_million_eur,
-        p.environmental_roi,
         p.carbon_tonnes_per_ha_2010,
         p.near_protected_area,
         p.plant_fit,
@@ -187,7 +181,6 @@ function App() {
               setPreset={setPreset}
               topCells={scored.slice(0, 10)}
               onSelect={select}
-              dataSource={dataSource}
               usingDemoData={usingDemoData}
               loading={loading}
               error={error}
@@ -202,6 +195,7 @@ function App() {
                 selectedId={selectedId}
                 onSelect={handleMapSelect}
                 flyToId={flyToId}
+                flyToRequest={flyToRequest}
                 theme={theme}
                 isPanelOpen={!!selectedFeature && !compareSelectFor}
                 selectionBannerVisible={!!compareSelectFor}
@@ -218,6 +212,10 @@ function App() {
                       }
                     : undefined
                 }
+                onResetView={() => {
+                  setSelectedId(null);
+                  setFlyToId(null);
+                }}
               />
 
               {selectedFeature && !compareSelectFor && (
