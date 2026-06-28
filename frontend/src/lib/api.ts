@@ -1,6 +1,7 @@
 import { CELLS, type CellFeature, type CellProps } from "@/lib/cells";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const DEFAULT_AREA_LIMIT = parsePositiveInt(import.meta.env.VITE_DEFAULT_AREA_LIMIT, 1000);
 
 export type BackendArea = {
   areaId: string;
@@ -62,6 +63,9 @@ export type AreasResponse = {
   areas: BackendArea[];
   geojson?: { type: "FeatureCollection"; features: GeoJsonFeature[] };
   source?: string;
+  limit?: number;
+  available?: number;
+  returned?: number;
 };
 
 export type ScenarioResponse = {
@@ -70,6 +74,9 @@ export type ScenarioResponse = {
   scores?: Record<string, Partial<BackendArea>>;
   topAreaIds?: string[];
   source?: string;
+  limit?: number;
+  available?: number;
+  returned?: number;
 };
 
 export type ComparisonResponse = ScenarioResponse & {
@@ -125,16 +132,18 @@ export async function getHealth() {
   return request<{ status: string; service: string }>("/health");
 }
 
-export async function getAreas(): Promise<AreasResponse> {
-  return request<AreasResponse>("/areas");
+export async function getAreas(limit = DEFAULT_AREA_LIMIT): Promise<AreasResponse> {
+  return request<AreasResponse>(withLimit("/areas", limit));
 }
 
 export async function getArea(areaId: string): Promise<BackendArea> {
   return request<BackendArea>(`/areas/${areaId}`);
 }
 
-export async function getScores(): Promise<Record<string, Partial<BackendArea>>> {
-  const data = await request<{ scoresByArea: Record<string, Partial<BackendArea>> }>("/scores");
+export async function getScores(limit = DEFAULT_AREA_LIMIT): Promise<Record<string, Partial<BackendArea>>> {
+  const data = await request<{ scoresByArea: Record<string, Partial<BackendArea>> }>(
+    withLimit("/scores", limit),
+  );
   return data.scoresByArea || {};
 }
 
@@ -156,8 +165,11 @@ export async function compareAreas(areaAId: string, areaBId: string): Promise<Co
   return request<ComparisonResponse>("/compare-areas", "POST", { areaIds: [areaAId, areaBId] });
 }
 
-export async function runScenario(weights: Record<string, number>): Promise<ScenarioResponse> {
-  const data = await request<ScenarioResponse>("/scenario", "POST", { weights });
+export async function runScenario(
+  weights: Record<string, number>,
+  limit = DEFAULT_AREA_LIMIT,
+): Promise<ScenarioResponse> {
+  const data = await request<ScenarioResponse>("/scenario", "POST", { weights, limit });
   return { ...data, scoresByArea: data.scoresByArea || data.scores || {} };
 }
 
@@ -188,7 +200,10 @@ export async function loadBackendCells(): Promise<{
     return { cells: CELLS, source: "local demo", usingDemoData: true };
   }
 
-  const [areasPayload, scoresByArea] = await Promise.all([getAreas(), getScores()]);
+  const [areasPayload, scoresByArea] = await Promise.all([
+    getAreas(DEFAULT_AREA_LIMIT),
+    getScores(DEFAULT_AREA_LIMIT),
+  ]);
   const cells = backendAreasToCells(areasPayload, scoresByArea);
   if (!cells.length) throw new Error("Backend returned no renderable areas.");
   return { cells, source: areasPayload.source || "api", usingDemoData: false };
@@ -446,4 +461,14 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> 
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined),
   ) as Partial<T>;
+}
+
+function withLimit(path: string, limit: number) {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : DEFAULT_AREA_LIMIT;
+  return `${path}?limit=${safeLimit}`;
+}
+
+function parsePositiveInt(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }

@@ -14,11 +14,12 @@ sys.path.insert(0, str(API_DIR))
 from app import lambda_handler  # noqa: E402
 
 
-def invoke(route_key: str, method: str, path: str, body: dict | None = None) -> dict:
+def invoke(route_key: str, method: str, path: str, body: dict | None = None, query: dict | None = None) -> dict:
     response = lambda_handler(
         {
             "routeKey": route_key,
             "rawPath": path,
+            "queryStringParameters": query or {},
             "requestContext": {"http": {"method": method}},
             "body": json.dumps(body or {}),
         },
@@ -45,6 +46,26 @@ class GeoJsonFlowTest(unittest.TestCase):
         self.assertEqual(response["body"]["geojson"]["type"], "FeatureCollection")
         self.assertEqual(response["body"]["source"], "local")
         self.assertGreaterEqual(len(response["body"]["geojson"]["features"]), 3)
+
+    def test_get_areas_respects_limit_query_parameter(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "PROCESSED_BUCKET": "",
+                "PROCESSED_DATA_BUCKET": "",
+                "LOCAL_GEOJSON_PATH": str(SAMPLE_GEOJSON),
+                "ALLOW_MOCK_DATA": "true",
+                "MAX_AREA_LIMIT": "2000",
+            },
+            clear=False,
+        ):
+            response = invoke("GET /areas", "GET", "/areas", query={"limit": "2"})
+
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(response["body"]["limit"], 2)
+        self.assertEqual(response["body"]["returned"], 2)
+        self.assertEqual(len(response["body"]["areas"]), 2)
+        self.assertEqual(len(response["body"]["geojson"]["features"]), 2)
 
     def test_every_feature_has_area_id(self) -> None:
         geojson = json.loads(SAMPLE_GEOJSON.read_text(encoding="utf-8"))

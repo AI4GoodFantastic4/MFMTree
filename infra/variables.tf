@@ -40,6 +40,18 @@ variable "allow_mock_data" {
   default     = true
 }
 
+variable "default_area_limit" {
+  description = "Default number of ranked candidate areas returned by list/scenario API endpoints."
+  type        = number
+  default     = 1000
+}
+
+variable "max_area_limit" {
+  description = "Maximum allowed candidate-area limit for API list/scenario endpoints."
+  type        = number
+  default     = 2000
+}
+
 variable "elevenlabs_secret_name" {
   description = "AWS Secrets Manager secret name that stores the ElevenLabs API key. Leave empty to use the project default."
   type        = string

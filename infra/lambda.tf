@@ -22,6 +22,8 @@ resource "aws_lambda_function" "api" {
       INDICATORS_KEY                = "indicators/latest.json"
       DATA_SOURCES_KEY              = "metadata/data_sources.json"
       ALLOW_MOCK_DATA               = tostring(var.allow_mock_data)
+      DEFAULT_AREA_LIMIT            = tostring(var.default_area_limit)
+      MAX_AREA_LIMIT                = tostring(var.max_area_limit)
       BEDROCK_ENABLED               = tostring(var.bedrock_enabled)
       BEDROCK_MODEL_ID              = var.bedrock_model_id
       TTS_ENABLED                   = tostring(var.tts_enabled)

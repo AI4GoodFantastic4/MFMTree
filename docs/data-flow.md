@@ -112,6 +112,27 @@ The helper normalizes the export and uploads:
 - `gis/final_gis_data.geojson`
 - `metadata/gee_exports/restoreai_ethiopia_low_compute_YYYY-MM-DD.geojson`
 
+## Candidate display limit
+
+The API and frontend default to the top 1000 candidate areas:
+
+- Frontend: `VITE_DEFAULT_AREA_LIMIT=1000`
+- Lambda/API: `DEFAULT_AREA_LIMIT=1000`
+- Lambda/API safety cap: `MAX_AREA_LIMIT=2000`
+
+`GET /areas?limit=1000` returns the top ranked areas plus a GeoJSON filtered to
+the same stable `areaId` set. `GET /scores?limit=1000` and `POST /scenario`
+use the same default limit for score payloads. If fewer than 1000 records exist
+in S3, the API returns all available records and reports `available` and
+`returned` counts in the response.
+
+The current production behavior still depends on the processed S3 object:
+`geometry/areas.geojson`. If that file was generated/exported with only 500
+features, the app can only display 500 real candidates even though the API and
+frontend now request 1000. Regenerate the GEE export with at least 1000
+candidates, rerun normalization, and republish to S3 to make all 1000 available
+in the live UI.
+
 For local development, set:
 
 ```bash

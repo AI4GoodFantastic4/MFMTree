@@ -1,12 +1,17 @@
 import json
+import os
 from typing import Any
 
 from bedrock import compare_areas, generate_area_explanation, generate_field_brief
 from cost_estimator import estimate_area_cost, estimate_cost_for_area, load_cost_assumptions, plan_budget
 from data import DataUnavailableError, get_area, load_area_collection, load_areas
 from data_sources import get_data_source, load_data_sources
-from scoring_engine import apply_scores, score_areas, scored_area_list
+from scoring_engine import apply_scores, scored_area_list
 from voice import VoiceGenerationError, generate_voice_audio, generate_voice_fallback
+
+
+DEFAULT_AREA_LIMIT = 1000
+MAX_AREA_LIMIT = 2000
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -26,18 +31,39 @@ def _route(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     if route_key == "GET /areas" or (method == "GET" and path == "/areas"):
         collection = load_area_collection()
+        limit = _area_limit(event)
+        scored_areas = _ranked_scored_areas(collection["areas"], limit=limit)
+        area_ids = {area["areaId"] for area in scored_areas if area.get("areaId")}
         return _json(
             200,
             {
-                "geojson": collection["geojson"],
-                "areas": scored_area_list(collection["areas"]),
+                "geojson": _filter_geojson_by_area_ids(collection["geojson"], area_ids),
+                "areas": scored_areas,
                 "source": collection["source"],
+                "limit": limit,
+                "available": len(collection["areas"]),
+                "returned": len(scored_areas),
             },
         )
 
     if route_key == "GET /scores" or (method == "GET" and path == "/scores"):
         areas, source = load_areas()
-        return _json(200, {"scoresByArea": score_areas(areas), "source": source})
+        limit = _area_limit(event)
+        scored_areas = _ranked_scored_areas(areas, limit=limit)
+        return _json(
+            200,
+            {
+                "scoresByArea": {
+                    area["areaId"]: _comparison_score_payload(area)
+                    for area in scored_areas
+                    if area.get("areaId")
+                },
+                "source": source,
+                "limit": limit,
+                "available": len(areas),
+                "returned": len(scored_areas),
+            },
+        )
 
     if route_key == "GET /data-sources" or (method == "GET" and path == "/data-sources"):
         sources, source = load_data_sources()
@@ -159,8 +185,13 @@ def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
     area_ids = body.get("areaIds") or [body.get("areaIdA"), body.get("areaIdB")]
     area_ids = [area_id for area_id in area_ids if area_id]
     areas, source = load_areas()
-    scores_by_area = score_areas(areas, weights)
-    ranked = sorted(scores_by_area.values(), key=lambda item: item.get("priorityScore", 0), reverse=True)
+    limit = _area_limit(event, body)
+    ranked = _ranked_scored_areas(areas, weights, limit=limit)
+    scores_by_area = {
+        area["areaId"]: _comparison_score_payload(area)
+        for area in ranked
+        if area.get("areaId")
+    }
 
     if len(area_ids) >= 2:
         area_a = next((area for area in areas if area.get("areaId") == area_ids[0]), None)
@@ -178,6 +209,9 @@ def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
                 "source": source,
                 "areaIds": [scored_a["areaId"], scored_b["areaId"]],
                 "scoresByArea": scores_by_area,
+                "limit": limit,
+                "available": len(areas),
+                "returned": len(scores_by_area),
                 "topAreaIds": [area["areaId"] for area in ranked[:3]],
                 "analysis": compare_areas(scored_a, scored_b, cost_a, cost_b),
             },
@@ -188,6 +222,9 @@ def _handle_scenario(event: dict[str, Any]) -> dict[str, Any]:
         {
             "scenario": body.get("name", "Default prioritisation"),
             "source": source,
+            "limit": limit,
+            "available": len(areas),
+            "returned": len(scores_by_area),
             "topAreaIds": [area["areaId"] for area in ranked[:3]],
             "scoresByArea": scores_by_area,
             "analysis": "Scenario recalculates deterministic scores from indicator inputs and scenario weights. Geometry is unchanged; onsite validation remains required before approval.",
@@ -258,6 +295,30 @@ def _comparison_confidence(score_a: float, score_b: float) -> str:
     if delta >= 4:
         return "medium"
     return "low"
+
+
+def _ranked_scored_areas(
+    areas: list[dict[str, Any]],
+    weights: dict[str, Any] | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    ranked = sorted(
+        scored_area_list(areas, weights),
+        key=lambda item: item.get("priorityScore", 0),
+        reverse=True,
+    )
+    return ranked[:limit] if limit else ranked
+
+
+def _filter_geojson_by_area_ids(geojson: dict[str, Any], area_ids: set[str]) -> dict[str, Any]:
+    if not area_ids or not isinstance(geojson, dict):
+        return geojson
+    features = [
+        feature
+        for feature in geojson.get("features", [])
+        if str((feature.get("properties") or {}).get("areaId")) in area_ids
+    ]
+    return {**geojson, "features": features}
 
 
 def _comparison_score_payload(area: dict[str, Any]) -> dict[str, Any]:
@@ -427,6 +488,28 @@ def _body(event: dict[str, Any]) -> dict[str, Any]:
         return parsed if isinstance(parsed, dict) else {}
     except json.JSONDecodeError:
         return {}
+
+
+def _area_limit(event: dict[str, Any], body: dict[str, Any] | None = None) -> int:
+    query = event.get("queryStringParameters") or {}
+    raw_limit = None
+    if body and body.get("limit") is not None:
+        raw_limit = body.get("limit")
+    elif query.get("limit") is not None:
+        raw_limit = query.get("limit")
+    else:
+        raw_limit = os.environ.get("DEFAULT_AREA_LIMIT", str(DEFAULT_AREA_LIMIT))
+
+    limit = _int_value(raw_limit, DEFAULT_AREA_LIMIT)
+    max_limit = _int_value(os.environ.get("MAX_AREA_LIMIT"), MAX_AREA_LIMIT)
+    return max(1, min(limit, max_limit))
+
+
+def _int_value(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _number(value: Any, default: float) -> float:
