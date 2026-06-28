@@ -12,13 +12,13 @@ import { useTheme } from "@/hooks/useTheme";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MFMTree — Reforestation Priority Explorer" },
+      { title: "RestoreEthopia — Reforestation Priority Explorer" },
       {
         name: "description",
         content:
-          "MFMTree helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
+          "RestoreEthopia helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
       },
-      { property: "og:title", content: "MFMTree — Reforestation Priority Explorer" },
+      { property: "og:title", content: "RestoreEthopia — Reforestation Priority Explorer" },
       {
         property: "og:description",
         content:
@@ -151,7 +151,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "mfmtree_cells.csv";
+    a.download = "restoreethopia_cells.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -254,7 +254,7 @@ function App() {
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[var(--mfm-border)] border-t-[#0070FF]" />
             <p className="text-sm text-[var(--mfm-text-2)]">
-              {loading ? "Loading area data…" : "Loading MFMTree…"}
+              {loading ? "Loading area data…" : "Loading RestoreEthopia…"}
             </p>
           </div>
         </div>
@@ -262,7 +262,7 @@ function App() {
 
       <div className="fixed inset-0 z-[60] hidden items-center justify-center bg-[var(--mfm-bg)] p-8 text-center max-[1023px]:flex">
         <p className="text-sm text-[var(--mfm-text)]">
-          MFMTree is designed for desktop. Please use a screen at least 1024px wide.
+          RestoreEthopia is designed for desktop. Please use a screen at least 1024px wide.
         </p>
       </div>
     </div>
