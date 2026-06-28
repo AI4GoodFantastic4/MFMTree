@@ -1,6 +1,6 @@
 # Metrics and Data Calculations
 
-This document explains which data is used by RestoreEthopia and how the app turns
+This document explains which data is used by RestoreEthiopia and how the app turns
 that data into the metrics shown in the frontend.
 
 Core rule:
@@ -884,4 +884,3 @@ compatibility, but it should not be presented as a user-facing decision metric.
      -H 'content-type: application/json' \
      -d '{"weights":{"carbon":0.3,"survival":0.2,"costEfficiency":0.2,"livelihood":0.15,"biodiversity":0.1,"riskPenalty":0.05}}'
    ```
-

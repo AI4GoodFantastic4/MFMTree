@@ -12,13 +12,13 @@ import { useTheme } from "@/hooks/useTheme";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "RestoreEthopia — Reforestation Priority Explorer" },
+      { title: "RestoreEthiopia — Reforestation Priority Explorer" },
       {
         name: "description",
         content:
-          "RestoreEthopia helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
+          "RestoreEthiopia helps NGO staff, investors, and governments identify the highest-priority reforestation cells across Ethiopia.",
       },
-      { property: "og:title", content: "RestoreEthopia — Reforestation Priority Explorer" },
+      { property: "og:title", content: "RestoreEthiopia — Reforestation Priority Explorer" },
       {
         property: "og:description",
         content:
@@ -252,7 +252,7 @@ function App() {
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[var(--mfm-border)] border-t-[#0070FF]" />
             <p className="text-sm text-[var(--mfm-text-2)]">
-              {loading ? "Loading area data…" : "Loading RestoreEthopia…"}
+              {loading ? "Loading area data…" : "Loading RestoreEthiopia…"}
             </p>
           </div>
         </div>
@@ -260,7 +260,7 @@ function App() {
 
       <div className="fixed inset-0 z-[60] hidden items-center justify-center bg-[var(--mfm-bg)] p-8 text-center max-[1023px]:flex">
         <p className="text-sm text-[var(--mfm-text)]">
-          RestoreEthopia is designed for desktop. Please use a screen at least 1024px wide.
+          RestoreEthiopia is designed for desktop. Please use a screen at least 1024px wide.
         </p>
       </div>
     </div>

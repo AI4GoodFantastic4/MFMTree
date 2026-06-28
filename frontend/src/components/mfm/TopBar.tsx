@@ -32,7 +32,7 @@ export function TopBar({ tab, onTab, onExport, theme, onToggleTheme }: Props) {
         />
         <span className="h-6 w-px bg-[var(--mfm-border)]" />
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold text-[var(--mfm-text)]">RestoreEthopia</span>
+          <span className="text-sm font-semibold text-[var(--mfm-text)]">RestoreEthiopia</span>
           <span className="hidden text-[10px] uppercase tracking-wider text-[var(--mfm-text-2)] md:inline">
             Menschen für Menschen · Reforestation Priority
           </span>

@@ -78,7 +78,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "RestoreEthopia" },
+      { title: "RestoreEthiopia" },
       { name: "description", content: "Reforestation priority explorer for Ethiopia" },
       { name: "author", content: "Menschen für Menschen" },
     ],

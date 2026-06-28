@@ -1,9 +1,9 @@
-# RestoreEthopia
+# RestoreEthiopia
 
 Reforestation Priority Platform: a 3D GIS decision-support tool for prioritising
 reforestation validation sites in Ethiopia.
 
-RestoreEthopia is an AI for Good hackathon project for the Menschen fuer
+RestoreEthiopia is an AI for Good hackathon project for the Menschen fuer
 Menschen challenge. It helps NGO staff pre-screen candidate reforestation areas
 before sending experts onsite. The product is designed to make limited field
 validation time and limited investment money go to the areas with the strongest
@@ -25,7 +25,7 @@ projects should be validated first. Today, expert onsite validation is expensive
 and slow. Poor site selection can waste money, reduce tree survival, weaken
 community benefit, and create carbon-credit integrity risk.
 
-RestoreEthopia narrows the search space. It combines remote-sensing evidence,
+RestoreEthiopia narrows the search space. It combines remote-sensing evidence,
 deterministic scoring, configurable cost assumptions, and concise AI
 explanations so staff can compare candidate areas and decide where experts
 should go first.
@@ -88,7 +88,7 @@ The repo is no longer only a skeleton. It currently includes:
 - scripts for publishing normalized GEE outputs to S3
 
 Some AWS resource names still use the internal `mfmtree` project prefix. The
-visible product name in the frontend is `RestoreEthopia`.
+visible product name in the frontend is `RestoreEthiopia`.
 
 ## Repository Structure
 
