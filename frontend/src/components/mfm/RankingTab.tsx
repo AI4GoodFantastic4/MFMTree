@@ -23,8 +23,7 @@ type SortKey =
   | "livelihood_proxy"
   | "water_soil_proxy"
   | "area_ha"
-  | "estimated_cost_million_eur"
-  | "environmental_roi";
+  | "estimated_cost_million_eur";
 
 export function RankingTab({ scored, weights, onView }: Props) {
   const [region] = useState("all"); // TODO: add region filter when real data available
@@ -103,7 +102,6 @@ export function RankingTab({ scored, weights, onView }: Props) {
               {headerCell("water_soil_proxy", "Water/Soil")}
               {headerCell("area_ha", "Area (ha)")}
               {headerCell("estimated_cost_million_eur", "Cost (M€)")}
-              {headerCell("environmental_roi", "ROI")}
               <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--mfm-text-2)]">
                 Eligibility
               </th>
@@ -153,9 +151,6 @@ export function RankingTab({ scored, weights, onView }: Props) {
                   </td>
                   <td className="px-3 py-2 text-right text-xs text-[var(--mfm-text)]">
                     {p.estimated_cost_million_eur.toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs text-[var(--mfm-text)]">
-                    {p.environmental_roi.toFixed(1)}x
                   </td>
                   <td className="px-3 py-2 text-xs text-[var(--mfm-text-2)]">
                     {p.eligibility_status}

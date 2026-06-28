@@ -475,7 +475,6 @@ function CellDetail({ cell }: { cell: { feature: CellFeature; score: number } })
           v={`${p.restorable_land_pct.toFixed(1)}% (${Math.round(p.target_project_area_ha).toLocaleString()} ha)`}
         />
         <Row k="Est. cost" v={`€${p.estimated_cost_million_eur.toFixed(2)}M`} />
-        <Row k="ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
       </dl>
       <p className="mt-3 text-xs text-[var(--mfm-text)]">{p.recommendation}</p>
       <div className="mt-3">

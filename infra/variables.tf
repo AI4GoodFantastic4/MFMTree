@@ -64,6 +64,12 @@ variable "elevenlabs_model_id" {
   default     = "eleven_turbo_v2_5"
 }
 
+variable "elevenlabs_timestamps_enabled" {
+  description = "Whether Lambda should call the slower ElevenLabs timestamp endpoint. When false, it generates faster audio and estimates word timings."
+  type        = bool
+  default     = false
+}
+
 variable "tts_enabled" {
   description = "Whether Lambda should attempt ElevenLabs TTS. When false it returns estimated text alignment only."
   type        = bool

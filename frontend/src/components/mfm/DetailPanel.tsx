@@ -281,7 +281,6 @@ export function DetailPanel({ feature, weights, onClose }: Props) {
               />
             )}
             {costEstimate && <Row k="Cost confidence" v={costEstimate.costConfidence} />}
-            <Row k="Environmental ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
             <Row k="Near protected area" v={p.near_protected_area > 0.5 ? "Yes" : "No"} />
             <Row k="Plant suitability" v={`${p.plant_fit.toFixed(0)}%`} />
             {p.restoration_system_code && (

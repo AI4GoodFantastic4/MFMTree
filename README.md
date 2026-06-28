@@ -751,6 +751,7 @@ Still mocked, placeholder, or manual:
 ## More Documentation
 
 - `docs/data-flow.md`: detailed GEE-to-S3-to-frontend data flow
+- `docs/metrics-and-data.md`: metric formulas, data sources, and current limitations
 - `docs/api-contract.md`: API endpoint examples
 - `docs/cost-estimation.md`: cost formulas and assumptions
 - `docs/frontend-cloudfront.md`: frontend hosting details
