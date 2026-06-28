@@ -399,7 +399,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       {/* BOTTOM CENTER: data source banner (optional) + status bar, stacked */}
       <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-10 flex flex-col items-center gap-2">
         {banner && (
-          <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/95 px-3 py-1.5 text-xs font-medium text-[var(--mfm-text)] shadow backdrop-blur">
+          <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/80 px-3 py-1 text-[11px] text-[var(--mfm-text-2)] backdrop-blur">
             {banner}
           </div>
         )}
