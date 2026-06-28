@@ -11,9 +11,11 @@ interface Props {
   onSelect: (id: number) => void;
   flyToId: number | null;
   theme: Theme;
+  onToggleTheme?: () => void;
   compareB?: number | null;
   banner?: string;
   flyToPadRight?: number;
+  panelOpen?: boolean;
 }
 
 const TOKEN =
@@ -42,7 +44,13 @@ function buildGeoJSON(cells: CellFeature[], weights: Weights) {
   };
 }
 
-export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, compareB = null, banner, flyToPadRight = 400 }: Props) {
+// Mapbox bottom-right container uses 10px padding; NavigationControl buttons are 29px wide.
+const NAV_RIGHT = 10;
+const NAV_WIDTH = 29;
+const CONTROLS_GAP = 8;
+const PANEL_WIDTH = 380;
+
+export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, onToggleTheme, compareB = null, banner, flyToPadRight = 400, panelOpen = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
@@ -197,7 +205,7 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
       bearing: -10,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
 
     map.on("error", (e) => {
       if (e?.error?.message?.toLowerCase().includes("unauthorized")) setTokenBad(true);
@@ -315,18 +323,46 @@ export function MapView({ cells, weights, selectedId, onSelect, flyToId, theme, 
           </div>
         </div>
       )}
-      <div className="absolute right-2 top-2 z-10 flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
-        {(["2D", "3D"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-              mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
-            }`}
-          >
-            {m}
-          </button>
-        ))}
+      {/* Custom map controls: sit immediately left of the Mapbox NavigationControl */}
+      <div
+        className="absolute z-10 flex items-end gap-2"
+        style={{
+          bottom: NAV_RIGHT,
+          right: NAV_RIGHT + NAV_WIDTH + CONTROLS_GAP + (panelOpen ? PANEL_WIDTH : 0),
+          transition: "right 300ms ease",
+        }}
+      >
+        {onToggleTheme && (
+          <div className="flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
+            {(["Light", "Satellite"] as const).map((label) => {
+              const isActive = label === "Light" ? theme === "light" : theme !== "light";
+              return (
+                <button
+                  key={label}
+                  onClick={() => { if (!isActive) onToggleTheme(); }}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    isActive ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/90 p-0.5 backdrop-blur">
+          {(["2D", "3D"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                mode === m ? "bg-[#0070FF] text-white" : "text-[var(--mfm-text-2)] hover:text-[var(--mfm-text)]"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-10 flex justify-center">
         <div className="pointer-events-auto rounded-md border border-[var(--mfm-border)] bg-[var(--mfm-surface)]/80 px-3 py-1 text-[11px] text-[var(--mfm-text-2)] backdrop-blur">
