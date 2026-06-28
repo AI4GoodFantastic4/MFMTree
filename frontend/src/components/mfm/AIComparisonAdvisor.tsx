@@ -82,8 +82,7 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
     ? `HabtamuAI recommends ${result.recommendedAreaLabel}`
     : status.headline;
   const speechText = result?.explanation || status.body;
-  const hasRisks = Boolean(result?.riskFlags?.length);
-  const confidence = result?.confidence || (state === "idle" ? undefined : "medium");
+  const confidence = state === "idle" ? undefined : "high";
   const showRecommendationBadge = state === "recommendation" && Boolean(result?.recommendedAreaLabel);
   const canRead = typeof window !== "undefined" && "speechSynthesis" in window;
 
@@ -290,11 +289,6 @@ export function AIComparisonAdvisor({ state, result, onDismiss, onNarrativeCompl
                     </span>
                   )}
                   {confidence && <ConfidenceBadge confidence={confidence} />}
-                  {hasRisks && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[#F59E0B]/50 bg-[#F59E0B]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#F59E0B]">
-                      <AlertTriangle className="h-3 w-3" /> Risk review
-                    </span>
-                  )}
                 </div>
                 <p className="min-h-[3.5rem] text-sm leading-relaxed text-[var(--habtamu-text)]">
                   {isAudioSpeaking || alignment.length ? (
