@@ -24,9 +24,12 @@ export function TopBar({ tab, onTab, onExport, theme, onToggleTheme }: Props) {
       style={{ height: "56px", flexShrink: 0 }}
     >
       <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#0070FF] text-sm font-bold text-white">
-          M
-        </span>
+        <img
+          src="https://www.menschenfuermenschen.de/tcl-uploads/2025/02/MfM-Logo_Blau_Vertical_RGB-_logosvg.svg"
+          alt="Menschen fuer Menschen"
+          className="h-10 w-auto"
+        />
+        <span className="h-6 w-px bg-[var(--mfm-border)]" />
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold text-[var(--mfm-text)]">MFMTree</span>
           <span className="hidden text-[10px] uppercase tracking-wider text-[var(--mfm-text-2)] md:inline">

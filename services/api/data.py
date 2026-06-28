@@ -9,6 +9,7 @@ DEFAULT_INDICATORS_KEY = "indicators/latest.json"
 SCORED_AREAS_KEY = "processed/scored_areas.json"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL_GEOJSON_PATH = REPO_ROOT / "data" / "sample" / "areas.geojson"
+DEFAULT_LOCAL_INDICATORS_PATH = REPO_ROOT / "data" / "processed" / "area_indicators.json"
 
 
 class DataUnavailableError(RuntimeError):
@@ -225,7 +226,8 @@ def load_area_collection() -> dict[str, Any]:
 
     local_geojson = load_local_or_mock_geojson()
     if local_geojson:
-        areas = _merge_geometry_and_indicators(local_geojson, _mock_indicators_by_area())
+        indicators = _read_local_json(_local_indicators_path()) or _mock_indicators_by_area()
+        areas = _merge_geometry_and_indicators(local_geojson, indicators)
         _log_data_source("local", str(_local_geojson_path()), len(areas))
         return {"areas": areas, "geojson": local_geojson, "source": "local"}
 
@@ -286,6 +288,23 @@ def _local_geojson_path() -> Path | None:
     if configured:
         return Path(configured)
     return DEFAULT_LOCAL_GEOJSON_PATH
+
+
+def _local_indicators_path() -> Path | None:
+    configured = os.environ.get("LOCAL_INDICATORS_PATH")
+    if configured:
+        return Path(configured)
+    return DEFAULT_LOCAL_INDICATORS_PATH
+
+
+def _read_local_json(path: Path | None) -> Any | None:
+    if not path or not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(json.dumps({"level": "warning", "event": "local_json_read_failed", "path": str(path), "error": str(exc)}))
+        return None
 
 
 def _read_s3_json(bucket: str, key: str) -> Any | None:
@@ -411,7 +430,10 @@ def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
     mappings = {
         "area_ha": "totalAreaHa",
         "slope_deg": "meanSlopeDeg",
+        "ndvi_current": "meanNdvi",
         "current_ndvi": "meanNdvi",
+        "ndmi_current": "meanNdmi",
+        "current_ndmi": "meanNdmi",
         "carbon_tonnes_per_ha_2010": "carbonTonnesPerHa2010",
         "population_local_mean_5km": "populationLocalMean5km",
         "near_protected_area": "nearProtectedArea",
@@ -420,87 +442,173 @@ def _normalize_indicators(indicators: dict[str, Any]) -> dict[str, Any]:
         "restorable_land_pct": "restorableLandPct",
         "valid_restoration_land": "validRestorationLandShare",
         "valid_restoration_land_pct": "validRestorationLandPct",
+        "valid_restoration_pct": "validRestorationPct",
+        "valid_candidate_10y_cleared_pct": "validCandidate10yClearedPct",
+        "valid_candidate_10y_cleared_area_ha": "validCandidate10yClearedAreaHa",
         "no_plant_empty_land_share": "noPlantEmptyLandShare",
         "no_plant_empty_land_pct": "noPlantEmptyLandPct",
         "built_up_share": "builtUpShare",
         "built_up_pct": "builtUpPct",
+        "water_wetland_pct": "waterWetlandPct",
         "water_wetland_mangrove_share": "waterWetlandMangroveShare",
         "water_wetland_mangrove_pct": "waterWetlandMangrovePct",
         "target_project_area_ha": "targetProjectAreaHa",
         "plant_fit": "plantFit",
         "annual_rain_mm": "annualRainMm",
         "rainfall_fit": "rainfallFit",
+        "rainfall_fit_pct": "rainfallFitPct",
         "water_soil_proxy": "waterSoilProxy",
         "soil_water_fit": "soilWaterFit",
+        "soil_water_fit_pct": "soilWaterFitPct",
         "terrain_access_fit": "terrainAccessFit",
+        "terrain_fit_pct": "terrainFitPct",
         "degradation_proxy": "degradationProxy",
+        "degradation_recovery_pct": "degradationRecoveryPct",
         "ndvi_decline_proxy": "ndviDeclineProxy",
         "soil_pawc_0_30cm_cm3cm3": "soilPawc030Cm",
+        "soil_pawc_0_30cm": "soilPawc030Cm",
         "settlement_pressure_1km_pct": "settlementPressure1kmPct",
         "settlement_pressure_1km_pct_export": "settlementPressure1kmPct",
+        "settlement_pressure_pct": "settlementPressurePct",
         "environmental_roi": "environmentalRoi",
+        "restoration_gain_pct": "restorationGainPct",
+        "vegetation_gain_pct": "vegetationGainPct",
+        "carbon_gain_pct": "carbonGainPct",
+        "soil_water_gain_pct": "soilWaterGainPct",
+        "habitat_recovery_gain_pct": "habitatRecoveryGainPct",
+        "restoration_additionality_pct": "restorationAdditionalityPct",
+        "forest_loss_10y_plus_pct": "forestLoss10yPlusPct",
+        "current_non_forest_evidence_pct": "currentNonForestEvidencePct",
+        "long_term_cleared_pct": "longTermClearedPct",
+        "long_term_cleared_confidence_pct": "longTermClearedConfidencePct",
+        "forest_regrowth_probability_pct": "forestRegrowthProbabilityPct",
+        "low_existing_carbon_pct": "lowExistingCarbonPct",
+        "ecological_restorable_pct": "ecologicalRestorablePct",
+        "low_vegetation_sparse_pct": "lowVegetationSparsePct",
+        "tree_pct": "treePct",
+        "shrubland_pct": "shrublandPct",
+        "grassland_pct": "grasslandPct",
+        "bare_sparse_pct": "bareSparsePct",
+        "cropland_pct": "croplandPct",
+        "open_ecosystem_pct": "openEcosystemPct",
+        "open_ecosystem_conversion_risk_pct": "openEcosystemConversionRiskPct",
+        "restoration_system_fit_pct": "restorationSystemFitPct",
+        "restoration_system_code": "restorationSystemCode",
+        "data_completeness_pct": "dataCompletenessPct",
+        "remote_sensing_uncertainty_pct": "remoteSensingUncertaintyPct",
+        "mrv_readiness_pct": "mrvReadinessPct",
+        "s2_observation_count": "s2ObservationCount",
+        "hard_exclusion": "hardExclusion",
+        "ecological_review_required": "ecologicalReviewRequired",
+        "social_review_required": "socialReviewRequired",
+        "land_history_review_required": "landHistoryReviewRequired",
+        "low_vegetation_review_required": "lowVegetationReviewRequired",
+        "mrv_review_required": "mrvReviewRequired",
     }
     for source, target in mappings.items():
         if source in normalized and target not in normalized:
             normalized[target] = normalized[source]
 
     if normalized.get("plantableFraction") is None:
-        if normalized.get("valid_restoration_land") is not None:
+        if normalized.get("valid_candidate_10y_cleared_pct") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["valid_candidate_10y_cleared_pct"])
+        elif normalized.get("valid_restoration_land") is not None:
             normalized["plantableFraction"] = _fraction(normalized["valid_restoration_land"], already_fraction=True)
         elif normalized.get("valid_restoration_land_pct") is not None:
             normalized["plantableFraction"] = _fraction(normalized["valid_restoration_land_pct"])
+        elif normalized.get("valid_restoration_pct") is not None:
+            normalized["plantableFraction"] = _fraction(normalized["valid_restoration_pct"])
         elif normalized.get("restorable_land_pct") is not None:
             normalized["plantableFraction"] = _fraction(normalized["restorable_land_pct"])
         elif normalized.get("restorable_land_share") is not None:
             normalized["plantableFraction"] = _fraction(normalized["restorable_land_share"], already_fraction=True)
 
+    if normalized.get("targetProjectAreaHa") is None and normalized.get("valid_candidate_10y_cleared_area_ha") is not None:
+        normalized["targetProjectAreaHa"] = _number_or_none(normalized.get("valid_candidate_10y_cleared_area_ha"))
+
     if normalized.get("expectedSurvivalRate") is None:
         plant_fit = _number_or_none(normalized.get("plant_fit"))
         water_soil = _number_or_none(normalized.get("water_soil_proxy"))
+        restoration_fit = _number_or_none(normalized.get("restoration_system_fit_pct"))
         if plant_fit is not None:
             normalized["expectedSurvivalRate"] = _fraction(plant_fit)
         elif water_soil is not None:
             normalized["expectedSurvivalRate"] = _fraction(water_soil)
+        elif restoration_fit is not None:
+            normalized["expectedSurvivalRate"] = _fraction(restoration_fit)
 
     if normalized.get("expectedTCO2ePerHa") is None:
         carbon_t_ha = _number_or_none(normalized.get("carbon_tonnes_per_ha_2010"))
+        carbon_gain = _number_or_none(normalized.get("carbon_gain_pct"))
         if carbon_t_ha is not None:
             normalized["expectedTCO2ePerHa"] = round(max(carbon_t_ha * 3.667, 0), 2)
+        elif carbon_gain is not None:
+            normalized["expectedTCO2ePerHa"] = round(max(_fraction(carbon_gain) * 90, 8), 2)
 
     if normalized.get("rainfallReliability") is None:
         rainfall_fit = _number_or_none(normalized.get("rainfall_fit"))
+        rainfall_fit_pct = _number_or_none(normalized.get("rainfall_fit_pct"))
         rainfall = _number_or_none(normalized.get("annual_rain_mm"))
-        if rainfall_fit is not None:
-            rainfall_fraction = _fraction(rainfall_fit)
+        if rainfall_fit is not None or rainfall_fit_pct is not None:
+            rainfall_fraction = _fraction(rainfall_fit if rainfall_fit is not None else rainfall_fit_pct)
             normalized["rainfallReliability"] = "high" if rainfall_fraction >= 0.7 else "medium" if rainfall_fraction >= 0.4 else "low"
         elif rainfall is not None:
             normalized["rainfallReliability"] = "high" if rainfall >= 1000 else "medium" if rainfall >= 650 else "low"
 
     if normalized.get("soilSuitability") is None:
         water_soil = _number_or_none(normalized.get("water_soil_proxy"))
+        soil_water_fit_pct = _number_or_none(normalized.get("soil_water_fit_pct"))
         pawc = _number_or_none(normalized.get("soil_pawc_0_30cm_cm3cm3"))
-        proxy = water_soil if water_soil is not None else (pawc * 100 if pawc is not None else None)
+        proxy = water_soil if water_soil is not None else soil_water_fit_pct if soil_water_fit_pct is not None else (pawc * 100 if pawc is not None else None)
         if proxy is not None:
             normalized["soilSuitability"] = "high" if proxy >= 75 else "medium" if proxy >= 45 else "low"
 
     if normalized.get("protectedAreaConcern") is None:
         protected = _number_or_none(normalized.get("protected_area_share"))
         near = _number_or_none(normalized.get("near_protected_area"))
+        ecological_review = _number_or_none(normalized.get("ecological_review_required"))
+        open_risk = _number_or_none(normalized.get("open_ecosystem_conversion_risk_pct"))
         signal = protected if protected is not None else near
         if signal is not None:
             normalized["protectedAreaConcern"] = "high" if signal >= 0.5 else "partial" if signal > 0.05 else "low"
+        elif ecological_review and ecological_review > 0:
+            normalized["protectedAreaConcern"] = "partial"
+        elif open_risk is not None:
+            normalized["protectedAreaConcern"] = "partial" if open_risk >= 40 else "low"
 
     if normalized.get("recentDeforestationRisk") is None:
         decline = _number_or_none(normalized.get("ndvi_decline_proxy"))
         degradation = _number_or_none(normalized.get("degradation_proxy"))
+        land_history_review = _number_or_none(normalized.get("land_history_review_required"))
+        regrowth = _number_or_none(normalized.get("forest_regrowth_probability_pct"))
         signal = decline if decline is not None else degradation
         if signal is not None:
             normalized["recentDeforestationRisk"] = "high" if signal >= 20 else "medium" if signal >= 5 else "low"
+        elif land_history_review and land_history_review > 0:
+            normalized["recentDeforestationRisk"] = "medium"
+        elif regrowth is not None:
+            normalized["recentDeforestationRisk"] = "medium" if regrowth >= 50 else "low"
+
+    if normalized.get("forestLossRecent") is None:
+        normalized["forestLossRecent"] = normalized.get("recentDeforestationRisk") == "high"
 
     if normalized.get("populationNearby") is None:
         population_proxy = _number_or_none(normalized.get("population_local_mean_5km"))
+        settlement_pressure = _number_or_none(normalized.get("settlement_pressure_pct"))
         if population_proxy is not None:
             normalized["populationNearby"] = round(population_proxy * 1000)
+        elif settlement_pressure is not None:
+            normalized["populationNearby"] = round(settlement_pressure * 300)
+
+    if normalized.get("monitoringFeasibility") is None:
+        mrv = _number_or_none(normalized.get("mrv_readiness_pct"))
+        if mrv is not None:
+            normalized["monitoringFeasibility"] = "high" if mrv >= 70 else "medium" if mrv >= 40 else "low"
+
+    if normalized.get("vegetationTrend") is None:
+        vegetation_gain = _number_or_none(normalized.get("vegetation_gain_pct"))
+        if vegetation_gain is not None:
+            normalized["vegetationTrend"] = round(-_fraction(vegetation_gain), 3)
 
     return normalized
 
@@ -525,25 +633,70 @@ def _indicators_from_properties(properties: dict[str, Any]) -> dict[str, Any]:
         "restorable_land_pct",
         "restorable_land_share",
         "valid_restoration_land",
+        "valid_restoration_pct",
+        "valid_candidate_10y_cleared_pct",
+        "valid_candidate_10y_cleared_area_ha",
         "valid_restoration_mask",
         "built_up_share",
+        "built_up_pct",
+        "water_wetland_pct",
         "water_wetland_mangrove_share",
         "no_plant_empty_land_share",
         "target_project_area_ha",
         "area_ha",
+        "ndvi_current",
+        "ndmi_current",
         "carbon_tonnes_per_ha_2010",
         "slope_deg",
         "population_local_mean_5km",
+        "settlement_pressure_pct",
         "settlement_pressure_1km_pct",
         "settlement_pressure_1km_pct_export",
         "near_protected_area",
         "protected_area_share",
         "plant_fit",
         "rainfall_fit",
+        "rainfall_fit_pct",
         "water_soil_proxy",
         "soil_water_fit",
+        "soil_water_fit_pct",
         "terrain_access_fit",
+        "terrain_fit_pct",
         "soil_pawc_0_30cm_cm3cm3",
+        "restoration_gain_pct",
+        "vegetation_gain_pct",
+        "carbon_gain_pct",
+        "soil_water_gain_pct",
+        "habitat_recovery_gain_pct",
+        "degradation_recovery_pct",
+        "restoration_additionality_pct",
+        "forest_loss_10y_plus_pct",
+        "current_non_forest_evidence_pct",
+        "long_term_cleared_pct",
+        "long_term_cleared_confidence_pct",
+        "forest_regrowth_probability_pct",
+        "low_existing_carbon_pct",
+        "ecological_restorable_pct",
+        "low_vegetation_sparse_pct",
+        "tree_pct",
+        "shrubland_pct",
+        "grassland_pct",
+        "bare_sparse_pct",
+        "cropland_pct",
+        "open_ecosystem_pct",
+        "open_ecosystem_conversion_risk_pct",
+        "restoration_system_fit_pct",
+        "restoration_system_code",
+        "data_completeness_pct",
+        "remote_sensing_uncertainty_pct",
+        "mrv_readiness_pct",
+        "s2_observation_count",
+        "hard_exclusion",
+        "ecological_review_required",
+        "social_review_required",
+        "land_history_review_required",
+        "low_vegetation_review_required",
+        "mrv_review_required",
         "eligibility_status",
         "candidate_ok",
         "roi_class",

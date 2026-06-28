@@ -39,6 +39,7 @@ locals {
     "POST /compare-areas",
     "POST /scenario",
     "POST /field-brief",
+    "POST /tts",
     "POST /voice"
   ])
 }

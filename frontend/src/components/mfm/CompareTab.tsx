@@ -1,16 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell as RCell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { TreePine } from "lucide-react";
 import {
   type CellFeature,
-  computeScore,
   degradationLabel,
   ndviLabel,
   plantsForElevation,
@@ -18,7 +9,12 @@ import {
   type Weights,
 } from "@/lib/cells";
 import { compareAreas, type ComparisonResponse } from "@/lib/api";
-import { AIComparisonAdvisor, type ComparisonAdvisorResult, type VerdaState } from "@/components/mfm/AIComparisonAdvisor";
+import { ScoreBar } from "@/components/mfm/ScoreBar";
+import {
+  AIComparisonAdvisor,
+  type ComparisonAdvisorResult,
+  type VerdaState,
+} from "@/components/mfm/AIComparisonAdvisor";
 
 interface Props {
   scored: { feature: CellFeature; score: number }[];
@@ -70,7 +66,11 @@ export function CompareTab({ scored, weights, aId, bId, onPickOnMap, onClear }: 
         if (!cancelled) {
           setAdvisorResult(buildLocalComparison(a, b));
           setAdvisorState("recommendation");
-          setNote(err instanceof Error ? err.message : "Comparison endpoint unavailable; using local comparison.");
+          setNote(
+            err instanceof Error
+              ? err.message
+              : "Comparison endpoint unavailable; using local comparison.",
+          );
         }
       }
     }
@@ -88,7 +88,10 @@ export function CompareTab({ scored, weights, aId, bId, onPickOnMap, onClear }: 
     if (advisorResult.riskFlags?.length) {
       setAdvisorState("warning");
       if (recommendationTimerRef.current) window.clearTimeout(recommendationTimerRef.current);
-      recommendationTimerRef.current = window.setTimeout(() => setAdvisorState("recommendation"), 1200);
+      recommendationTimerRef.current = window.setTimeout(
+        () => setAdvisorState("recommendation"),
+        1200,
+      );
       return;
     }
     setAdvisorState("recommendation");
@@ -109,8 +112,18 @@ export function CompareTab({ scored, weights, aId, bId, onPickOnMap, onClear }: 
         </div>
       )}
       <div className="grid grid-cols-2 gap-4">
-        <Column label="CELL A" cell={a} weights={weights} onPick={() => onPickOnMap("A")} onClear={() => onClear("A")} />
-        <Column label="CELL B" cell={b} weights={weights} onPick={() => onPickOnMap("B")} onClear={() => onClear("B")} />
+        <Column
+          label="CELL A"
+          cell={a}
+          onPick={() => onPickOnMap("A")}
+          onClear={() => onClear("A")}
+        />
+        <Column
+          label="CELL B"
+          cell={b}
+          onPick={() => onPickOnMap("B")}
+          onClear={() => onClear("B")}
+        />
       </div>
     </div>
   );
@@ -133,9 +146,10 @@ function mapComparisonResult(
     ...((recommendedAreaId === aId ? areaAScore?.riskFlags : areaBScore?.riskFlags) || []),
     ...(recommended.feature.properties.risk_flags || []),
   ]);
-  const keyTradeoffs = response.keyTradeoffs?.length || response.comparisonBullets?.length
-    ? response.keyTradeoffs || response.comparisonBullets || []
-    : deriveTradeoffs(a, b, areaAScore, areaBScore);
+  const keyTradeoffs =
+    response.keyTradeoffs?.length || response.comparisonBullets?.length
+      ? response.keyTradeoffs || response.comparisonBullets || []
+      : deriveTradeoffs(a, b, areaAScore, areaBScore);
   const fieldValidationQuestions = response.fieldValidationQuestions?.length
     ? response.fieldValidationQuestions
     : defaultFieldQuestions();
@@ -176,11 +190,17 @@ function buildLocalComparison(
       recommendedAreaName: labelForCell(recommended),
       confidence: confidenceFromScores(a.score, b.score),
       keyTradeoffs: deriveTradeoffs(a, b),
-      riskFlags: unique([...(recommended.feature.properties.risk_flags || []), ...(other.feature.properties.risk_flags || [])]),
+      riskFlags: unique([
+        ...(recommended.feature.properties.risk_flags || []),
+        ...(other.feature.properties.risk_flags || []),
+      ]),
       fieldValidationQuestions: defaultFieldQuestions(),
     }),
     keyTradeoffs: deriveTradeoffs(a, b),
-    riskFlags: unique([...(recommended.feature.properties.risk_flags || []), ...(other.feature.properties.risk_flags || [])]),
+    riskFlags: unique([
+      ...(recommended.feature.properties.risk_flags || []),
+      ...(other.feature.properties.risk_flags || []),
+    ]),
     fieldValidationQuestions: defaultFieldQuestions(),
     decisionBasis: ["Frontend score", "Cost proxy", "Readiness proxy", "Risk flags"],
   };
@@ -227,7 +247,8 @@ function pickRecommendedAreaId(
   const bId = b.feature.properties.area_id;
   const aPriority = aId ? response.scoresByArea?.[aId]?.priorityScore : undefined;
   const bPriority = bId ? response.scoresByArea?.[bId]?.priorityScore : undefined;
-  if (typeof aPriority === "number" && typeof bPriority === "number") return aPriority >= bPriority ? aId : bId;
+  if (typeof aPriority === "number" && typeof bPriority === "number")
+    return aPriority >= bPriority ? aId : bId;
   return a.score >= b.score ? aId : bId;
 }
 
@@ -240,22 +261,58 @@ function deriveTradeoffs(
   const pA = a.feature.properties;
   const pB = b.feature.properties;
   const tradeoffs = [
-    scoreDelta("Priority", areaAScore?.priorityScore ?? a.score, areaBScore?.priorityScore ?? b.score, labelForCell(a), labelForCell(b)),
-    scoreDelta("Carbon", areaAScore?.carbonScore ?? pA.carbon_proxy, areaBScore?.carbonScore ?? pB.carbon_proxy, labelForCell(a), labelForCell(b)),
-    scoreDelta("Cost efficiency", areaAScore?.costEfficiencyScore ?? pA.environmental_roi, areaBScore?.costEfficiencyScore ?? pB.environmental_roi, labelForCell(a), labelForCell(b)),
-    lowerIsBetter("Risk", areaAScore?.riskScore ?? pA.risk_score ?? 50, areaBScore?.riskScore ?? pB.risk_score ?? 50, labelForCell(a), labelForCell(b)),
+    scoreDelta(
+      "Priority",
+      areaAScore?.priorityScore ?? a.score,
+      areaBScore?.priorityScore ?? b.score,
+      labelForCell(a),
+      labelForCell(b),
+    ),
+    scoreDelta(
+      "Carbon",
+      areaAScore?.carbonScore ?? pA.carbon_proxy,
+      areaBScore?.carbonScore ?? pB.carbon_proxy,
+      labelForCell(a),
+      labelForCell(b),
+    ),
+    scoreDelta(
+      "Cost efficiency",
+      areaAScore?.costEfficiencyScore ?? pA.environmental_roi,
+      areaBScore?.costEfficiencyScore ?? pB.environmental_roi,
+      labelForCell(a),
+      labelForCell(b),
+    ),
+    lowerIsBetter(
+      "Risk",
+      areaAScore?.riskScore ?? pA.risk_score ?? 50,
+      areaBScore?.riskScore ?? pB.risk_score ?? 50,
+      labelForCell(a),
+      labelForCell(b),
+    ),
   ];
   return tradeoffs.filter(Boolean).slice(0, 4);
 }
 
-function scoreDelta(label: string, aValue: number | undefined, bValue: number | undefined, aLabel: string, bLabel: string) {
+function scoreDelta(
+  label: string,
+  aValue: number | undefined,
+  bValue: number | undefined,
+  aLabel: string,
+  bLabel: string,
+) {
   if (typeof aValue !== "number" || typeof bValue !== "number") return "";
   const delta = Math.abs(aValue - bValue);
   if (delta < 2) return `${label} is broadly similar between both areas.`;
   return `${aValue > bValue ? aLabel : bLabel} has stronger ${label.toLowerCase()} (${Math.round(Math.max(aValue, bValue))} vs ${Math.round(Math.min(aValue, bValue))}).`;
 }
 
-function lowerIsBetter(label: string, aValue: number | undefined, bValue: number | undefined, aLabel: string, bLabel: string) {
+function lowerIsBetter(
+  label: string,
+  aValue: number | undefined,
+  bValue: number | undefined,
+  aLabel: string,
+  bLabel: string,
+) {
   if (typeof aValue !== "number" || typeof bValue !== "number") return "";
   const delta = Math.abs(aValue - bValue);
   if (delta < 2) return `${label} is broadly similar between both areas.`;
@@ -270,7 +327,11 @@ function confidenceFromScores(aScore: number, bScore: number) {
 }
 
 function labelForCell(cell: { feature: CellFeature; score: number }) {
-  return cell.feature.properties.name || cell.feature.properties.area_id || `Cell ${cell.feature.properties.grid_id}`;
+  return (
+    cell.feature.properties.name ||
+    cell.feature.properties.area_id ||
+    `Cell ${cell.feature.properties.grid_id}`
+  );
 }
 
 function unique(items: (string | undefined)[]) {
@@ -290,24 +351,26 @@ function defaultFieldQuestions() {
 function Column({
   label,
   cell,
-  weights,
   onPick,
   onClear,
 }: {
   label: string;
   cell?: { feature: CellFeature; score: number };
-  weights: Weights;
   onPick: () => void;
   onClear: () => void;
 }) {
   return (
     <div className="rounded-lg border border-[var(--mfm-border)] bg-[var(--mfm-surface)] p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--mfm-text-2)]">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--mfm-text-2)]">
+          {label}
+        </span>
         {cell && (
           <span className="flex items-center gap-2 font-mono text-[11px] text-[var(--mfm-text-2)]">
             #{cell.feature.properties.grid_id}
-            <button onClick={onClear} className="text-[#0070FF] hover:underline">× Change</button>
+            <button onClick={onClear} className="text-[#0070FF] hover:underline">
+              × Change
+            </button>
           </span>
         )}
       </div>
@@ -318,7 +381,7 @@ function Column({
         {cell ? "Select a different cell on Map" : "Select on Map"}
       </button>
       {cell ? (
-        <CellDetail cell={cell} weights={weights} />
+        <CellDetail cell={cell} />
       ) : (
         <p className="text-sm text-[var(--mfm-text-2)]">No cell selected.</p>
       )}
@@ -326,15 +389,13 @@ function Column({
   );
 }
 
-function CellDetail({ cell, weights }: { cell: { feature: CellFeature; score: number }; weights: Weights }) {
+function CellDetail({
+  cell,
+}: {
+  cell: { feature: CellFeature; score: number };
+}) {
   const p = cell.feature.properties;
-  const score = computeScore(p, weights);
-  const data = [
-    { name: "Carbon", v: p.carbon_proxy },
-    { name: "Biodiv.", v: p.biodiversity_proxy },
-    { name: "Livelihood", v: p.livelihood_proxy },
-    { name: "Water/Soil", v: p.water_soil_proxy },
-  ];
+  const score = cell.score;
   const plants = plantsForElevation(p.elevation_m);
   return (
     <div>
@@ -349,29 +410,66 @@ function CellDetail({ cell, weights }: { cell: { feature: CellFeature; score: nu
           {p.eligibility_status}
         </span>
       </div>
-      <div className="h-32">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ left: 0, right: 10 }}>
-            <XAxis type="number" domain={[0, 100]} hide />
-            <YAxis type="category" dataKey="name" width={70} tick={{ fill: "var(--mfm-text-2)", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip cursor={{ fill: "var(--mfm-surface-2)" }} contentStyle={{ background: "var(--mfm-bg)", border: "1px solid var(--mfm-border)", borderRadius: 6, fontSize: 12 }} />
-            <Bar dataKey="v" radius={[0, 4, 4, 0]}>
-              {data.map((d, i) => (
-                <RCell key={i} fill={scoreColor(d.v)} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="space-y-2">
+        <ScoreBar
+          label="Priority score"
+          value={score}
+          previousValue={p.previous_priority_score}
+          compact
+        />
+        <ScoreBar
+          label="Carbon potential"
+          value={p.carbon_proxy}
+          previousValue={p.previous_carbon_score}
+          compact
+        />
+        <ScoreBar
+          label="Tree survival"
+          value={p.water_soil_proxy}
+          previousValue={p.previous_tree_survival_score}
+          compact
+        />
+        <ScoreBar
+          label="Cost efficiency"
+          value={p.cost_efficiency_score ?? p.environmental_roi}
+          previousValue={p.previous_cost_efficiency_score}
+          compact
+        />
+        <ScoreBar
+          label="Livelihood"
+          value={p.livelihood_proxy}
+          previousValue={p.previous_livelihood_score}
+          compact
+        />
+        <ScoreBar
+          label="Biodiversity"
+          value={p.biodiversity_proxy}
+          previousValue={p.previous_biodiversity_score}
+          compact
+        />
+        <ScoreBar
+          label="Risk"
+          value={p.risk_score}
+          previousValue={p.previous_risk_score}
+          inverse
+          compact
+        />
       </div>
       <dl className="mt-3 space-y-1 text-xs">
         <Row k="NDVI" v={`${p.current_ndvi.toFixed(2)} — ${ndviLabel(p.current_ndvi)}`} />
-        <Row k="Degradation" v={`${p.degradation_proxy.toFixed(2)} — ${degradationLabel(p.degradation_proxy)}`} />
+        <Row
+          k="Degradation"
+          v={`${p.degradation_proxy.toFixed(2)} — ${degradationLabel(p.degradation_proxy)}`}
+        />
         <Row k="Elevation" v={`${Math.round(p.elevation_m)} m`} />
         <Row k="Rainfall" v={`${Math.round(p.annual_rain_mm)} mm/yr`} />
         <Row k="Slope" v={`${p.slope_deg.toFixed(1)}°`} />
         <Row k="Carbon density" v={`${p.carbon_tonnes_per_ha_2010.toFixed(1)} t/ha`} />
         <Row k="Population (5km)" v={`${p.population_local_mean_5km.toFixed(1)} /km²`} />
-        <Row k="Restorable" v={`${p.restorable_land_pct.toFixed(1)}% (${Math.round(p.target_project_area_ha).toLocaleString()} ha)`} />
+        <Row
+          k="Restorable"
+          v={`${p.restorable_land_pct.toFixed(1)}% (${Math.round(p.target_project_area_ha).toLocaleString()} ha)`}
+        />
         <Row k="Est. cost" v={`€${p.estimated_cost_million_eur.toFixed(2)}M`} />
         <Row k="ROI" v={`${p.environmental_roi.toFixed(1)}x`} />
       </dl>
@@ -382,7 +480,10 @@ function CellDetail({ cell, weights }: { cell: { feature: CellFeature; score: nu
         </h5>
         <ul className="space-y-0.5 text-xs text-[var(--mfm-text)]">
           {plants.map((s) => (
-            <li key={s}>🌱 {s}</li>
+            <li key={s} className="flex items-center gap-2">
+              <TreePine size={14} strokeWidth={1.5} />
+              <span>{s}</span>
+            </li>
           ))}
         </ul>
       </div>
