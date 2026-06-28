@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FRONTEND_DIR="${FRONTEND_DIR:-$ROOT_DIR/ai4goodhackathonmfmtree}"
+FRONTEND_DIR="${FRONTEND_DIR:-$ROOT_DIR/frontend}"
 INFRA_DIR="$ROOT_DIR/infra"
 
 if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then

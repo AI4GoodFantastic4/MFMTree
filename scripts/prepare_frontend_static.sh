@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FRONTEND_DIR="${1:-ai4goodhackathonmfmtree}"
+FRONTEND_DIR="${1:-frontend}"
 PUBLIC_DIR="$FRONTEND_DIR/.output/public"
 SERVER_ENTRY="$FRONTEND_DIR/.output/server/index.mjs"
 

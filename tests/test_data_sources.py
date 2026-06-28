@@ -53,6 +53,10 @@ class DataSourcesTest(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertGreaterEqual(len(body["dataSources"]), 18)
         self.assertEqual(body["source"], "default")
+        sentinel2 = next(source for source in body["dataSources"] if source["sourceId"] == "sentinel2_surface_reflectance")
+        self.assertEqual(sentinel2["scriptSection"], "4. SENTINEL-2 CURRENT VEGETATION")
+        self.assertIn("current_ndvi", sentinel2["indicatorFields"])
+        self.assertEqual(sentinel2["pipelineOutputs"]["indicators"], "indicators/latest.json")
 
     def test_get_one_data_source_endpoint(self) -> None:
         with patch.dict(os.environ, {"PROCESSED_BUCKET": "", "PROCESSED_DATA_BUCKET": ""}, clear=False):
@@ -69,6 +73,7 @@ class DataSourcesTest(unittest.TestCase):
         body = json.loads(response["body"])
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(body["geeAssetId"], "COPERNICUS/S2_SR_HARMONIZED")
+        self.assertEqual(body["s3Prefix"], "sources/gee/sentinel2_surface_reflectance/")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,62 @@ from typing import Any
 
 
 DEFAULT_DATA_SOURCES_KEY = "metadata/data_sources.json"
+SCHEMA_VERSION = "0.2.0"
+GEE_REFERENCE_SCRIPT = "services/gee-processor/references/restoreai_gee_data_only_message.js"
+
+GEE_SCRIPT_SECTIONS: dict[str, str] = {
+    "aoi_ocha_hdx_admin": "2. AOI",
+    "aoi_fao_gaul_fallback": "2. AOI",
+    "sentinel2_surface_reflectance": "4. SENTINEL-2 CURRENT VEGETATION",
+    "landsat5_collection2_l2": "5. LANDSAT NDVI CHANGE",
+    "landsat7_collection2_l2": "5. LANDSAT NDVI CHANGE",
+    "landsat8_collection2_l2": "5. LANDSAT NDVI CHANGE",
+    "landsat9_collection2_l2": "5. LANDSAT NDVI CHANGE",
+    "sentinel1_grd": "6. SENTINEL-1 SAR",
+    "esa_worldcover": "7. ESA WORLDCOVER / 9. EMPTY NO-PLANT MASK",
+    "hansen_global_forest_change": "8. HANSEN FOREST CHANGE",
+    "biomass_carbon_density_2010": "10. CARBON",
+    "chirps_daily_rainfall": "11. RAINFALL",
+    "soilgrids_field_capacity": "12. SOILS",
+    "soilgrids_wilting_point": "12. SOILS",
+    "srtm_dem": "13. TERRAIN",
+    "wdpa_protected_areas": "14. WDPA + POPULATION",
+    "ghsl_population_2025": "14. WDPA + POPULATION",
+    "cifor_icraf_species_suitability": "16. PLANT / RESTORATION OPTIONS",
+}
+
+INDICATOR_FIELDS_BY_SOURCE: dict[str, list[str]] = {
+    "sentinel2_surface_reflectance": ["current_ndvi", "current_ndmi", "low_current_vegetation"],
+    "landsat5_collection2_l2": ["landsat_ndvi_2000_2004", "ndvi_decline_proxy"],
+    "landsat7_collection2_l2": ["landsat_ndvi_2000_2004", "ndvi_decline_proxy"],
+    "landsat8_collection2_l2": ["landsat_ndvi_2021_2024", "ndvi_decline_proxy"],
+    "landsat9_collection2_l2": ["landsat_ndvi_2021_2024", "ndvi_decline_proxy"],
+    "sentinel1_grd": ["sentinel1_vh_structure_proxy"],
+    "esa_worldcover": [
+        "restorable_land_share",
+        "built_up_share",
+        "water_wetland_mangrove_share",
+        "existing_tree_cover_share",
+        "no_plant_empty_land_share",
+        "valid_restoration_land",
+    ],
+    "hansen_global_forest_change": ["treecover2000", "forest_loss_2001_2025", "degradation_proxy"],
+    "biomass_carbon_density_2010": ["carbon_tonnes_per_ha_2010", "carbon_proxy"],
+    "chirps_daily_rainfall": ["annual_rain_mm", "rainfall_fit"],
+    "soilgrids_field_capacity": ["soil_water_33kpa_0_30cm_raw", "soil_pawc_0_30cm_cm3cm3", "soil_water_fit"],
+    "soilgrids_wilting_point": ["soil_water_1500kpa_0_30cm_raw", "soil_pawc_0_30cm_cm3cm3", "soil_water_fit"],
+    "srtm_dem": ["elevation_m", "slope_deg", "terrain_access_fit"],
+    "wdpa_protected_areas": ["protected_area_share", "near_protected_area"],
+    "ghsl_population_2025": ["population_local_mean_5km", "settlement_pressure_1km_pct", "community_access", "livelihood_proxy"],
+    "cifor_icraf_species_suitability": ["plant_fit", "selected_species_profile"],
+}
+
+PIPELINE_OUTPUTS = {
+    "geometry": "geometry/areas.geojson",
+    "indicators": "indicators/latest.json",
+    "scores": "scores/default_scores.json",
+    "metadata": DEFAULT_DATA_SOURCES_KEY,
+}
 
 
 DEFAULT_DATA_SOURCES: list[dict[str, Any]] = [
@@ -183,9 +239,10 @@ def load_data_sources() -> tuple[list[dict[str, Any]], str]:
         sources = _normalize_sources(data)
         if sources:
             print(json.dumps({"level": "info", "event": "data_sources_source", "source": "s3", "key": key, "count": len(sources)}))
-            return sources, "s3"
-    print(json.dumps({"level": "info", "event": "data_sources_source", "source": "default", "count": len(DEFAULT_DATA_SOURCES)}))
-    return DEFAULT_DATA_SOURCES, "default"
+            return _decorate_sources(sources), "s3"
+    sources = _decorate_sources(DEFAULT_DATA_SOURCES)
+    print(json.dumps({"level": "info", "event": "data_sources_source", "source": "default", "count": len(sources)}))
+    return sources, "default"
 
 
 def get_data_source(source_id: str) -> dict[str, Any] | None:
@@ -212,3 +269,32 @@ def _normalize_sources(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(raw_sources, list):
         return []
     return [source for source in raw_sources if isinstance(source, dict) and source.get("sourceId") and source.get("name")]
+
+
+def _decorate_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_decorate_source(source) for source in sources]
+
+
+def _decorate_source(source: dict[str, Any]) -> dict[str, Any]:
+    source_id = str(source.get("sourceId", ""))
+    decorated = dict(source)
+    decorated.setdefault("schemaVersion", SCHEMA_VERSION)
+    decorated.setdefault("geeScriptReference", GEE_REFERENCE_SCRIPT)
+    decorated.setdefault("scriptSection", GEE_SCRIPT_SECTIONS.get(source_id, "not mapped"))
+    decorated.setdefault("s3Prefix", _default_s3_prefix(source_id))
+    decorated.setdefault("indicatorFields", INDICATOR_FIELDS_BY_SOURCE.get(source_id, []))
+    decorated.setdefault("pipelineOutputs", PIPELINE_OUTPUTS)
+    decorated.setdefault("decisionRole", "evidence_indicator")
+    decorated.setdefault(
+        "flow",
+        "GEE or external source -> area indicators/geometry in S3 -> backend deterministic scoring -> frontend areaId join",
+    )
+    return decorated
+
+
+def _default_s3_prefix(source_id: str) -> str:
+    if source_id.startswith("aoi_"):
+        return "sources/admin/"
+    if source_id == "cifor_icraf_species_suitability":
+        return "sources/species/"
+    return f"sources/gee/{source_id}/"

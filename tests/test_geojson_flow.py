@@ -110,13 +110,19 @@ class GeoJsonFlowTest(unittest.TestCase):
                     "properties": {
                         "grid_id": 4360000079,
                         "area_ha": 9824.23,
+                        "valid_restoration_land": 0.64,
                         "restorable_land_pct": 94.9,
+                        "built_up_share": 0.01,
+                        "water_wetland_mangrove_share": 0.0,
+                        "no_plant_empty_land_share": 0.72,
                         "current_ndvi": 0.216,
+                        "rainfall_fit": 0.52,
                         "annual_rain_mm": 754,
                         "slope_deg": 1.05,
                         "plant_fit": 100,
                         "carbon_tonnes_per_ha_2010": 8.56,
                         "near_protected_area": 1,
+                        "settlement_pressure_1km_pct_export": 12,
                     },
                     "geometry": {
                         "type": "Polygon",
@@ -146,7 +152,9 @@ class GeoJsonFlowTest(unittest.TestCase):
         self.assertEqual(response["body"]["geojson"]["features"][0]["properties"]["areaId"], area_id)
         self.assertEqual(response["body"]["areas"][0]["areaId"], area_id)
         self.assertEqual(response["body"]["areas"][0]["indicators"]["totalAreaHa"], 9824.23)
-        self.assertAlmostEqual(response["body"]["areas"][0]["indicators"]["plantableFraction"], 0.949, places=3)
+        self.assertAlmostEqual(response["body"]["areas"][0]["indicators"]["plantableFraction"], 0.64, places=3)
+        self.assertEqual(response["body"]["areas"][0]["indicators"]["rainfallReliability"], "medium")
+        self.assertEqual(response["body"]["areas"][0]["indicators"]["settlementPressure1kmPct"], 12)
         self.assertIn(area_id, scenario["body"]["scoresByArea"])
 
 

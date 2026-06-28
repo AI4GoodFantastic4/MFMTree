@@ -36,7 +36,7 @@ future production extension and is not deployed yet.
 
 ```text
 infra/                  Terraform infrastructure
-frontend/               Vite + React demo frontend
+frontend/               Real TanStack/Vite reforestation dashboard frontend
 services/api/           Python Lambda backend and Bedrock wrapper
 services/gis-processor/ Docker-based GIS processor skeleton
 services/gee-processor/ Google Earth Engine Python processor container
@@ -121,7 +121,9 @@ make frontend-dev
 - The Earth Engine processor builds the computation graph, but real exports require GEE credentials and explicit non-dry-run execution.
 - Bedrock responses fall back to deterministic text when disabled or failing.
 - EventBridge/S3 trigger is a placeholder variable-ready module section.
-- The 3D frontend is not included yet.
+- The frontend is a hackathon-ready map/dashboard experience; replace the
+  current map styling with full Cesium/3D terrain when real production
+  geospatial assets are ready.
 
 See [docs/aws-architecture.md](docs/aws-architecture.md),
 [docs/api-contract.md](docs/api-contract.md),
