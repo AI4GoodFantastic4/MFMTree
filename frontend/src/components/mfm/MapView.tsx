@@ -44,6 +44,9 @@ const INITIAL_BOUNDS: mapboxgl.LngLatBoundsLike = [
 const CAMERA_3D = { pitch: 45, bearing: -10 };
 const CAMERA_2D = { pitch: 0, bearing: 0 };
 const TERRAIN_SOURCE_ID = "mapbox-dem";
+// Keep custom map toggles immediately left of the native Mapbox nav control.
+const NAV_CTRL_RIGHT_OFFSET = 50;
+const PANEL_WIDTH = 380;
 
 function buildGeoJSON(cells: CellFeature[], weights: Weights) {
   return {
@@ -346,6 +349,10 @@ export function MapView({
     });
 
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    const ctrlTopRight = containerRef.current.querySelector(
+      ".mapboxgl-ctrl-top-right",
+    ) as HTMLElement | null;
+    if (ctrlTopRight) ctrlTopRight.style.transition = "right 300ms ease";
 
     map.on("error", (e) => {
       if (e?.error?.message?.toLowerCase().includes("unauthorized")) setTokenBad(true);
@@ -391,6 +398,13 @@ export function MapView({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStyle]);
+
+  // Slide the native Mapbox nav control with the detail panel so the map controls remain aligned.
+  useEffect(() => {
+    const el = containerRef.current?.querySelector(".mapboxgl-ctrl-top-right") as HTMLElement | null;
+    if (!el) return;
+    el.style.right = isPanelOpen ? `${PANEL_WIDTH}px` : "0";
+  }, [isPanelOpen]);
 
   // update scores/materials without rebuilding or refetching geometry
   useEffect(() => {
@@ -479,8 +493,8 @@ export function MapView({
       <div
         className="absolute z-40 flex flex-col items-end gap-1.5 transition-all"
         style={{
-          top: selectionBannerVisible ? "64px" : "16px",
-          right: isPanelOpen ? "396px" : "16px",
+          top: selectionBannerVisible ? "64px" : "10px",
+          right: NAV_CTRL_RIGHT_OFFSET + (isPanelOpen ? PANEL_WIDTH : 0),
         }}
       >
         <div className="flex rounded-md bg-white/95 p-0.5 shadow">
